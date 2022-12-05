@@ -2,7 +2,7 @@ package socketserver
 
 import "errors"
 
-var ErrDataEmpty error = errors.New("Request data empty")
+var ErrDataEmpty error = errors.New("request data empty")
 
 func NewSocketRequest(client *SocketClient) (request *SocketRequest) {
 	request = &SocketRequest{
