@@ -1,11 +1,6 @@
 package socketserver
 
 import (
-	"ak-project-server/common/errcode"
-	"ak-project-server/common/request"
-	commandCode "ak-project-server/common/request/command"
-	operationCode "ak-project-server/common/request/operation"
-	"ak-project-server/logger"
 	"errors"
 	"io"
 	"sync"
@@ -13,6 +8,8 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/andy2kuo/AndyGameServerGo/logger"
 )
 
 type ClientEvent func(*SocketClient)
@@ -83,7 +80,7 @@ func (client *SocketClient) StartProcess() {
 				}
 			} else {
 				if errors.Is(readErr, io.EOF) {
-					client.Close(errcode.DISCONNECT_BY_CLIENT_STOP)
+					client.Close(DISCONNECT_BY_CLIENT_STOP)
 					break
 				}
 
@@ -93,7 +90,7 @@ func (client *SocketClient) StartProcess() {
 
 			for client.packer.Done() {
 				req := client.packer.Get()
-				go client.server.OperationResponse(client, req)
+				go client.server.RunOperation(req)
 			}
 		}
 	}()
@@ -105,7 +102,7 @@ func (client *SocketClient) StartProcess() {
 			if client.connection != nil {
 				if time.Now().UTC().Sub(client.lastConnectTime) > client.time_out {
 					client.logger.Warn("Client time out")
-					client.Close(errcode.DISCONNECT_BY_CLIENT_TIME_OUT)
+					client.Close(DISCONNECT_BY_CLIENT_TIME_OUT)
 					break
 				}
 			} else {
@@ -116,12 +113,12 @@ func (client *SocketClient) StartProcess() {
 }
 
 // 關閉客戶端連線
-func (client *SocketClient) Close(errCode errcode.ErrorCode) {
+func (client *SocketClient) Close(errCode ErrorCode) {
 	defer func() {
 		if client.connection != nil {
 			client.connection.Close()
 			client.connection = nil
-			client.logger.Info("Client Close. Reason:", errCode.Err())
+			client.logger.Info("Client Close. Reason:", errCode.Int())
 		}
 	}()
 
@@ -132,12 +129,18 @@ func (client *SocketClient) Close(errCode errcode.ErrorCode) {
 }
 
 // 發送封包
-func (client *SocketClient) Send(data []byte) error {
+func (client *SocketClient) Send(opCode OperationCode, cmdCode CommandCode, reqData ReqData) error {
 	client.Lock()
 	defer client.Unlock()
 
+	byteData, err := client.packer.PackData(opCode, cmdCode, reqData)
+
+	if err != nil {
+		return err
+	}
+
 	if client.connection != nil {
-		_, err := client.connection.Write(data)
+		_, err := client.connection.Write(byteData)
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
 				client.logger.Error(fmt.Sprintf("Client send data fail, error => %v", err.Error()))
@@ -153,18 +156,6 @@ func (client *SocketClient) Send(data []byte) error {
 		client.logger.Error("Client send data fail, connection error => Empty")
 		return ErrConnectionNull
 	}
-}
-
-// 發送封包回覆
-func (client *SocketClient) SendResponse(opCode operationCode.OperationCode, cmdCode commandCode.CommandCode, rep request.CmdData) error {
-	data, err := client.packer.PackData(opCode, cmdCode, rep)
-	if err == nil {
-		client.Send(data)
-	} else {
-		client.logger.Error(fmt.Sprintf("Client pack reponse fail, error => %v", err.Error()))
-	}
-
-	return err
 }
 
 // 設定此連線玩家登入資料
@@ -216,10 +207,11 @@ func NewClient(id int, server *SocketServer, ctx *ConnContext, conn *net.TCPConn
 		time_out:        time.Second * 30,
 		connection:      conn,
 		conn_ctx:        ctx,
-		packer:          NewPacket(),
 		server:          server,
 		logger:          ctx.Log(),
 	}
+
+	new_client.packer = NewPacket(new_client)
 
 	return new_client
 }

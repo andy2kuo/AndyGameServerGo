@@ -1,10 +1,6 @@
 package socketserver
 
 import (
-	"ak-project-server/common/errcode"
-	"ak-project-server/common/request"
-	operationCode "ak-project-server/common/request/operation"
-	"ak-project-server/logger"
 	"context"
 	"fmt"
 	"net"
@@ -12,6 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/andy2kuo/AndyGameServerGo/logger"
 )
 
 // 伺服器
@@ -21,7 +19,7 @@ type SocketServer struct {
 	listener       *net.TCPListener      // 伺服器監聽端
 	client_list    map[int]*SocketClient // 已連接客戶端列表
 	temp_client_id int
-	operationCmds  map[operationCode.OperationCode]Operation
+	operationCmds  map[OperationCode]Operation
 	logger         *logger.Logger
 	ctx            *ConnContext
 	cancel         context.CancelFunc
@@ -47,7 +45,7 @@ func (server *SocketServer) Start() {
 			_, is_id_exist := server.client_list[server.temp_client_id]
 			if is_id_exist {
 				server.logger.Error(fmt.Sprintf("%v => client id repeated!!", server.temp_client_id))
-				server.client_list[server.temp_client_id].Close(errcode.DISCONNECT_BY_CLIENT_ID_DUPLICATE)
+				server.client_list[server.temp_client_id].Close(DISCONNECT_BY_CLIENT_ID_DUPLICATE)
 				delete(server.client_list, server.temp_client_id)
 			}
 
@@ -97,7 +95,7 @@ func (server *SocketServer) Close() {
 	}
 }
 
-func (server *SocketServer) RegisterOperationCmd(op Operation) {
+func (server *SocketServer) AddOperation(op Operation) {
 	_, isExist := server.operationCmds[op.GetOperationCode()]
 	if isExist {
 		server.logger.Warn("Op: %v Duplicate!", op.GetOperationCode())
@@ -106,22 +104,22 @@ func (server *SocketServer) RegisterOperationCmd(op Operation) {
 	server.operationCmds[op.GetOperationCode()] = op
 }
 
-func (server *SocketServer) OperationResponse(client *SocketClient, req *request.SocketRequest) {
+func (server *SocketServer) RunOperation(req *SocketRequest) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("%v", r)
-			server.logger.Error(fmt.Sprintf("Recover!! Operation error. Op code = %v, Cmd code = %v, error message => %v", req.OpCode(), req.CmdCode(), err.Error()))
+			server.logger.Error(fmt.Sprintf("Recover!! Operation error. Op code = %v, Cmd code = %v, error message => %v", req.OperationCode(), req.CommandCode(), err.Error()))
 		}
 	}()
 
-	op, isExist := server.operationCmds[req.OpCode()]
+	op, isExist := server.operationCmds[req.OperationCode()]
 	if isExist {
-		err := op.Command(client, req)
+		err := op.Command(req)
 		if err != nil {
-			server.logger.Error(fmt.Sprintf("Operation error. Op code = %v, Cmd code = %v, error message => %v", req.OpCode(), req.CmdCode(), err.Error()))
+			server.logger.Error(fmt.Sprintf("Operation error. Op code = %v, Cmd code = %v, error message => %v", req.OperationCode(), req.CommandCode(), err.Error()))
 		}
 	} else {
-		server.logger.Warn(fmt.Sprintf("Operation not exist. Op code = %v", req.OpCode()))
+		server.logger.Warn(fmt.Sprintf("Operation not exist. Op code = %v", req.OperationCode()))
 	}
 }
 
@@ -132,7 +130,7 @@ func NewServer(name string, port int, log *logger.Logger) (server *SocketServer,
 		client_list:    make(map[int]*SocketClient),
 		temp_client_id: 1,
 		logger:         log,
-		operationCmds:  make(map[operationCode.OperationCode]Operation),
+		operationCmds:  make(map[OperationCode]Operation),
 	}
 
 	server.ctx = &ConnContext{
@@ -151,8 +149,6 @@ func NewServer(name string, port int, log *logger.Logger) (server *SocketServer,
 	}
 
 	server.listener = listener
-
-	server.RegisterOperationCmd(NewOpMemberLogin(server, server.ctx).Operation)
 
 	return server, nil
 }

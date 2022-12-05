@@ -1,7 +1,7 @@
 package socketserver
 
 import (
-	"ak-project-server/logger"
+	"github.com/andy2kuo/AndyGameServerGo/logger"
 	"context"
 	"sync"
 )

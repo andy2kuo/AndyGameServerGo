@@ -1,9 +1,6 @@
 package socketserver
 
 import (
-	"ak-project-server/common/request"
-	commandCode "ak-project-server/common/request/command"
-	operationCode "ak-project-server/common/request/operation"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
@@ -11,13 +8,14 @@ import (
 	"sync"
 )
 
-func NewPacket() (p *Packer) {
+func NewPacket(client *SocketClient) (p *Packer) {
 	p = &Packer{
 		buffer:        make([]byte, 0),
-		tempRequests:  make(map[int]*request.SocketRequest),
+		tempRequests:  make(map[int]*SocketRequest),
 		nowDataLength: 0,
 		nowIndex:      0,
 		maxIndex:      0,
+		client:        client,
 	}
 
 	return p
@@ -27,12 +25,14 @@ type Packer struct {
 	sync.RWMutex
 
 	buffer       []byte
-	tempRequests map[int]*request.SocketRequest
+	tempRequests map[int]*SocketRequest
 
 	nowDataLength int32
 
 	nowIndex int
 	maxIndex int
+
+	client *SocketClient
 }
 
 func (p *Packer) Done() bool {
@@ -42,7 +42,7 @@ func (p *Packer) Done() bool {
 	return len(p.tempRequests) > 0
 }
 
-func (p *Packer) Get() (req *request.SocketRequest) {
+func (p *Packer) Get() (req *SocketRequest) {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -81,11 +81,15 @@ func (p *Packer) Add(data []byte) (err error) {
 		if p.nowDataLength > 0 {
 			if len(p.buffer) >= int(p.nowDataLength) {
 				packet_data := p.buffer[4 : p.nowDataLength+4]
-				if err = p.transferData(packet_data); err == nil {
-					p.buffer = p.buffer[p.nowDataLength+4:]
-					p.nowDataLength = 0
-				} else {
-					return fmt.Errorf("socket client transfer data fail. Error => %v", err)
+
+				err = p.transferData(packet_data)
+
+				p.buffer = p.buffer[p.nowDataLength+4:]
+				p.nowDataLength = 0
+
+				if err != nil {
+					err = fmt.Errorf("socket client transfer data fail. Error => %v", err)
+					return err
 				}
 			} else {
 				break
@@ -103,33 +107,37 @@ func (p *Packer) transferData(data []byte) (err error) {
 
 	// Operation Code
 
-	opCode := operationCode.OperationCode(data[data_index])
+	opCode := OperationCode(data[data_index])
 	data_index++
 
 	// Comand Code
 
-	cmdCode := commandCode.CommandCode(data[data_index])
+	cmdCode := CommandCode(data[data_index])
 	data_index++
 
-	var reqData request.CmdData
+	var reqData ReqData
 	err = json.Unmarshal(data[data_index:], &reqData)
 
-	req := request.NewSocketRequest(opCode, cmdCode, reqData)
+	req := NewSocketRequest(p.client)
+	req.SetOperationCode(opCode)
+	req.SetCommandCode(cmdCode)
+	req.SetAll(reqData)
 	p.tempRequests[p.maxIndex] = req
 	p.maxIndex++
 
 	return err
 }
 
-func (p *Packer) PackData(opCode operationCode.OperationCode, cmdCode commandCode.CommandCode, rep request.CmdData) (data []byte, err error) {
-	data = make([]byte, 0)
+// 打包檔案
+func (p *Packer) PackData(opCode OperationCode, cmdCode CommandCode, reqData ReqData) (byteData []byte, err error) {
+	byteData = make([]byte, 0)
 	err = nil
 	var totalLength int32 = 2
 
 	var jsonData []byte
-	jsonData, err = json.Marshal(rep)
+	jsonData, err = json.Marshal(reqData)
 	if err != nil {
-		return data, err
+		return byteData, err
 	}
 
 	totalLength += int32(len(jsonData))
@@ -138,10 +146,10 @@ func (p *Packer) PackData(opCode operationCode.OperationCode, cmdCode commandCod
 	buf.Reset()
 	binary.Write(buf, binary.LittleEndian, totalLength)
 
-	data = append(data, buf.Bytes()...)
-	data = append(data, byte(opCode))
-	data = append(data, byte(cmdCode))
-	data = append(data, jsonData...)
+	byteData = append(byteData, buf.Bytes()...)
+	byteData = append(byteData, byte(opCode))
+	byteData = append(byteData, byte(cmdCode))
+	byteData = append(byteData, jsonData...)
 
-	return data, err
+	return byteData, err
 }
