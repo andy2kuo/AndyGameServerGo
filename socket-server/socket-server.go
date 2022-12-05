@@ -10,19 +10,19 @@ import (
 	"time"
 
 	"github.com/andy2kuo/AndyGameServerGo/logger"
+	"github.com/google/uuid"
 )
 
 // 伺服器
 type SocketServer struct {
-	name           string                // 伺服器名稱
-	port           int                   // 連接埠
-	listener       *net.TCPListener      // 伺服器監聽端
-	client_list    map[int]*SocketClient // 已連接客戶端列表
-	temp_client_id int
-	operationCmds  map[OperationCode]Operation
-	logger         *logger.Logger
-	ctx            *ConnContext
-	cancel         context.CancelFunc
+	name          string                   // 伺服器名稱
+	port          int                      // 連接埠
+	listener      *net.TCPListener         // 伺服器監聽端
+	client_list   map[string]*SocketClient // 已連接客戶端列表
+	operationCmds map[OperationCode]Operation
+	logger        *logger.Logger
+	ctx           *ConnContext
+	cancel        context.CancelFunc
 }
 
 // 啟動
@@ -40,18 +40,18 @@ func (server *SocketServer) Start() {
 				continue
 			}
 
-			new_client := NewClient(server.temp_client_id, server, server.ctx, new_conn)
+			new_client_id := fmt.Sprintf("%v-%v-%v", time.Now().Format("20060102"), new_conn.RemoteAddr().String(), uuid.New().String())
+			new_client := NewClient(new_client_id, server, server.ctx, new_conn)
 
-			_, is_id_exist := server.client_list[server.temp_client_id]
+			_, is_id_exist := server.client_list[new_client_id]
 			if is_id_exist {
-				server.logger.Error(fmt.Sprintf("%v => client id repeated!!", server.temp_client_id))
-				server.client_list[server.temp_client_id].Close(DISCONNECT_BY_CLIENT_ID_DUPLICATE)
-				delete(server.client_list, server.temp_client_id)
+				server.logger.Warn(fmt.Sprintf("%v => client id repeated!!", new_client_id))
+				server.client_list[new_client_id].Close(DISCONNECT_BY_CLIENT_ID_DUPLICATE)
+				delete(server.client_list, new_client_id)
 			}
 
 			new_client.StartProcess()
-			server.client_list[server.temp_client_id] = new_client
-			server.temp_client_id++
+			server.client_list[new_client_id] = new_client
 		}
 	}()
 
@@ -125,12 +125,11 @@ func (server *SocketServer) RunOperation(req *SocketRequest) {
 
 func NewServer(name string, port int, log *logger.Logger) (server *SocketServer, err error) {
 	server = &SocketServer{
-		name:           name,
-		port:           port,
-		client_list:    make(map[int]*SocketClient),
-		temp_client_id: 1,
-		logger:         log,
-		operationCmds:  make(map[OperationCode]Operation),
+		name:          name,
+		port:          port,
+		client_list:   make(map[string]*SocketClient),
+		logger:        log,
+		operationCmds: make(map[OperationCode]Operation),
 	}
 
 	server.ctx = &ConnContext{

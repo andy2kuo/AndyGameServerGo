@@ -13,6 +13,8 @@ import (
 )
 
 type ClientEvent func(*SocketClient)
+type ClientInfoCode byte
+
 var ErrConnectionNull error = errors.New("connection empty")
 var ErrClientHadLogin error = errors.New("client is login")
 
@@ -20,7 +22,7 @@ var ErrClientHadLogin error = errors.New("client is login")
 type SocketClient struct {
 	sync.RWMutex
 
-	id              int           // 客戶端編號
+	id              string        // 客戶端編號
 	connectTime     time.Time     // 連線時間
 	lastConnectTime time.Time     // 最後連線時間
 	time_out        time.Duration // 超時時間
@@ -31,6 +33,8 @@ type SocketClient struct {
 	server          *SocketServer
 
 	isLogin bool // 是否登入
+
+	customInfo map[ClientInfoCode]interface{}
 }
 
 // 開始客戶端進程
@@ -89,7 +93,7 @@ func (client *SocketClient) StartProcess() {
 			}
 
 			for client.packer.Done() {
-				req := client.packer.Get()
+				req := client.packer.GetWithClient(client)
 				go client.server.RunOperation(req)
 			}
 		}
@@ -159,12 +163,14 @@ func (client *SocketClient) Send(opCode OperationCode, cmdCode CommandCode, reqD
 }
 
 // 設定此連線玩家登入資料
-func (client *SocketClient) SetLogin() error {
+func (client *SocketClient) SetLogin(loginInfo map[ClientInfoCode]interface{}) error {
 	client.Lock()
 	defer client.Unlock()
 
 	if !client.isLogin {
-		
+		for code, data := range loginInfo {
+			client.Set(code, data)
+		}
 		client.isLogin = true
 	} else {
 		return ErrClientHadLogin
@@ -173,19 +179,46 @@ func (client *SocketClient) SetLogin() error {
 	return nil
 }
 
-func (client *SocketClient) UpdateLoginInfo() error {
+// 設定自訂資料
+func (client *SocketClient) Set(code ClientInfoCode, data interface{}) {
 	client.Lock()
 	defer client.Unlock()
 
-	if !client.isLogin {
-		
+	client.customInfo[code] = data
+}
 
-		client.isLogin = true
-	} else {
-		return ErrClientHadLogin
+// 取得自訂資料
+func (client *SocketClient) Get(code ClientInfoCode) (data interface{}) {
+	client.RLock()
+	defer client.RUnlock()
+
+	data, isExist := client.customInfo[code]
+
+	if isExist {
+		return data
 	}
 
 	return nil
+}
+
+// 移除指定自訂資料
+func (client *SocketClient) Clear(code ClientInfoCode) {
+	client.Lock()
+	defer client.Unlock()
+
+	_, isExist := client.customInfo[code]
+
+	if isExist {
+		delete(client.customInfo, code)
+	}
+}
+
+// 清空自訂資料
+func (client *SocketClient) ClearAll() {
+	client.Lock()
+	defer client.Unlock()
+
+	client.customInfo = make(map[ClientInfoCode]interface{})
 }
 
 // 清空此連線玩家登入資料
@@ -199,7 +232,7 @@ func (client *SocketClient) SetLogout() error {
 }
 
 // 產生新的客戶端
-func NewClient(id int, server *SocketServer, ctx *ConnContext, conn *net.TCPConn) *SocketClient {
+func NewClient(id string, server *SocketServer, ctx *ConnContext, conn *net.TCPConn) *SocketClient {
 	new_client := &SocketClient{
 		id:              id,
 		connectTime:     time.Now().UTC(),
@@ -209,6 +242,7 @@ func NewClient(id int, server *SocketServer, ctx *ConnContext, conn *net.TCPConn
 		conn_ctx:        ctx,
 		server:          server,
 		logger:          ctx.Log(),
+		customInfo:      make(map[ClientInfoCode]interface{}),
 	}
 
 	new_client.packer = NewPacket(new_client)

@@ -15,7 +15,6 @@ func NewPacket(client *SocketClient) (p *Packer) {
 		nowDataLength: 0,
 		nowIndex:      0,
 		maxIndex:      0,
-		client:        client,
 	}
 
 	return p
@@ -31,8 +30,6 @@ type Packer struct {
 
 	nowIndex int
 	maxIndex int
-
-	client *SocketClient
 }
 
 func (p *Packer) Done() bool {
@@ -42,7 +39,21 @@ func (p *Packer) Done() bool {
 	return len(p.tempRequests) > 0
 }
 
-func (p *Packer) Get() (req *SocketRequest) {
+func (p *Packer) GetWithClient(client *SocketClient) (req *SocketRequest) {
+	p.RLock()
+	defer p.RUnlock()
+
+	if len(p.tempRequests) > 0 {
+		req = p.tempRequests[p.nowIndex]
+		delete(p.tempRequests, p.nowIndex)
+		p.nowIndex++
+	}
+
+	req.SetClient(client)
+	return req
+}
+
+func (p *Packer) Get(client *SocketClient) (req *SocketRequest) {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -118,7 +129,7 @@ func (p *Packer) transferData(data []byte) (err error) {
 	var reqData ReqData
 	err = json.Unmarshal(data[data_index:], &reqData)
 
-	req := NewSocketRequest(p.client)
+	req := NewSocketRequest()
 	req.SetOperationCode(opCode)
 	req.SetCommandCode(cmdCode)
 	req.SetAll(reqData)

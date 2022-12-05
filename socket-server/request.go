@@ -3,13 +3,13 @@ package socketserver
 import "errors"
 
 var ErrDataEmpty error = errors.New("request data empty")
+var ErrClientNotSet error = errors.New("request client null")
 
-func NewSocketRequest(client *SocketClient) (request *SocketRequest) {
+func NewSocketRequest() (request *SocketRequest) {
 	request = &SocketRequest{
 		opCode:  0,
 		cmdCode: 0,
 		reqData: make(ReqData),
-		client:  client,
 	}
 
 	return request
@@ -21,6 +21,11 @@ type SocketRequest struct {
 	opCode  OperationCode
 	cmdCode CommandCode
 	client  *SocketClient
+}
+
+// 設置此請求客戶端
+func (req *SocketRequest) SetClient(client *SocketClient) {
+	req.client = client
 }
 
 // 設置程序編號
@@ -69,6 +74,24 @@ func (req *SocketRequest) SetAll(datas ReqData) error {
 
 	req.reqData = datas
 	return nil
+}
+
+// 回覆此請求
+func (req *SocketRequest) Response(reqData ReqData) error {
+	if req.client == nil {
+		return ErrClientNotSet
+	}
+
+	return req.client.Send(req.opCode, req.cmdCode, reqData)
+}
+
+// 發送資料
+func (req *SocketRequest) Send(opCode OperationCode, cmdCode CommandCode, reqData ReqData) error {
+	if req.client == nil {
+		return ErrClientNotSet
+	}
+
+	return req.client.Send(opCode, cmdCode, reqData)
 }
 
 type OperationCode byte
