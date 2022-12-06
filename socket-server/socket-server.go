@@ -34,9 +34,6 @@ func (server *SocketServer) Start() {
 		for server.listener != nil {
 			new_conn, err := server.listener.AcceptTCP()
 			if err != nil {
-				//if server.listener != nil {
-				//	server.logger.Warn("Error on Socket Server listening", err.Error())
-				//}
 				continue
 			}
 
@@ -123,6 +120,7 @@ func (server *SocketServer) RunOperation(req *SocketRequest) {
 	}
 }
 
+// 產生新的Socket Server
 func NewServer(name string, port int, log *logger.Logger) (server *SocketServer, err error) {
 	server = &SocketServer{
 		name:          name,
