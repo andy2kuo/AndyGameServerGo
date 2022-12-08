@@ -10,26 +10,47 @@ import (
 	"time"
 
 	"github.com/andy2kuo/AndyGameServerGo/logger"
-	"github.com/google/uuid"
 )
 
 // 伺服器
 type SocketServer struct {
-	name          string                   // 伺服器名稱
-	port          int                      // 連接埠
-	listener      *net.TCPListener         // 伺服器監聽端
-	client_list   map[string]*SocketClient // 已連接客戶端列表
-	operationCmds map[OperationCode]Operation
-	logger        *logger.Logger
-	ctx           *ConnContext
-	cancel        context.CancelFunc
+	name         string                   // 伺服器名稱
+	port         int                      // 連接埠
+	listener     *net.TCPListener         // 伺服器監聽端
+	client_list  map[string]*SocketClient // 已連接客戶端列表
+	systems      map[SystemCode]SubSystem
+	operations   map[OperationCode]Operation
+	logger       *logger.Logger
+	ctx          context.Context
+	cancel       context.CancelFunc
+	serialNum    uint64
+	opRunMaxTime int // 流程執行最大秒數
 }
 
 // 啟動
 func (server *SocketServer) Start() {
+	var cross__day_time time.Time
 
 	go func() {
 		server.logger.Info("Socket Server Start!")
+		year, month, day := time.Now().Date()
+		cross__day_time = time.Date(year, month, day+1, 0, 0, 0, 0, time.Now().Location())
+
+		if len(server.systems) > 0 {
+			for _, sys := range server.systems {
+				if err := sys.OnServerStart(); err != nil {
+					server.logger.Error(fmt.Sprintf("System Start error. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
+				}
+			}
+		}
+
+		if len(server.operations) > 0 {
+			for _, op := range server.operations {
+				if err := op.OnServerStart(); err != nil {
+					server.logger.Error(fmt.Sprintf("Operation Start error. Op code = %v, error message => %v", op.GetOperationCode(), err.Error()))
+				}
+			}
+		}
 
 		for server.listener != nil {
 			new_conn, err := server.listener.AcceptTCP()
@@ -37,18 +58,25 @@ func (server *SocketServer) Start() {
 				continue
 			}
 
-			new_client_id := fmt.Sprintf("%v-%v-%v", time.Now().Format("20060102"), new_conn.RemoteAddr().String(), uuid.New().String())
+			if time.Now().After(cross__day_time) {
+				cross__day_time = cross__day_time.AddDate(0, 0, 1)
+				server.serialNum = 0
+			}
+
+			new_client_id := fmt.Sprintf("socket-%v-%v-%v", time.Now().Format("20060102"), new_conn.RemoteAddr().String(), server.serialNum)
 			new_client := NewClient(new_client_id, server, server.ctx, new_conn)
 
 			_, is_id_exist := server.client_list[new_client_id]
 			if is_id_exist {
 				server.logger.Warn(fmt.Sprintf("%v => client id repeated!!", new_client_id))
-				server.client_list[new_client_id].Close(DISCONNECT_BY_CLIENT_ID_DUPLICATE)
+				server.client_list[new_client_id].Close(ErrClientIDDuplicate)
 				delete(server.client_list, new_client_id)
 			}
 
 			new_client.StartProcess()
 			server.client_list[new_client_id] = new_client
+
+			server.serialNum++
 		}
 	}()
 
@@ -60,7 +88,7 @@ Loop:
 		select {
 		case signal := <-osNotify:
 			server.logger.Warn(fmt.Sprintf("Get os notify. On signal: %v", signal.String()))
-			server.Close()
+			server.close()
 
 			// 等待五秒鐘再離開，給正在關閉的服務緩衝時間
 			time.Sleep(time.Second * 5)
@@ -72,7 +100,7 @@ Loop:
 }
 
 // 關閉伺服器
-func (server *SocketServer) Close() {
+func (server *SocketServer) close() {
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("%v", r)
@@ -90,17 +118,91 @@ func (server *SocketServer) Close() {
 	if server.cancel != nil {
 		server.cancel()
 	}
+
+	if len(server.systems) > 0 {
+		for _, sys := range server.systems {
+			if err := sys.OnServerClose(); err != nil {
+				server.logger.Error(fmt.Sprintf("System Close error. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
+			}
+		}
+	}
+
+	if len(server.operations) > 0 {
+		for _, op := range server.operations {
+			if err := op.OnServerClose(); err != nil {
+				server.logger.Error(fmt.Sprintf("Operation Close error. Op code = %v, error message => %v", op.GetOperationCode(), err.Error()))
+			}
+		}
+	}
 }
 
-func (server *SocketServer) AddOperation(op Operation) {
-	_, isExist := server.operationCmds[op.GetOperationCode()]
+// 加入流程器
+func (server *SocketServer) AddOperation(op Operation) error {
+	_, isExist := server.operations[op.GetOperationCode()]
 	if isExist {
 		server.logger.Warn("Op: %v Duplicate!", op.GetOperationCode())
 	}
 
-	server.operationCmds[op.GetOperationCode()] = op
+	server.operations[op.GetOperationCode()] = op
+	return op.OnOperationInit(server, server.logger)
 }
 
+// 加入共用系統
+func (server *SocketServer) AddSubSystem(sys SubSystem) error {
+	_, isExist := server.systems[sys.GetSystemCode()]
+	if isExist {
+		server.logger.Warn("Sys: %v Duplicate!", sys.GetSystemCode())
+	}
+
+	server.systems[sys.GetSystemCode()] = sys
+	return sys.OnSystemInit(server, server.logger)
+}
+
+// 當有新的客戶端連線進入時
+func (server *SocketServer) OnClientConnect(client *SocketClient) {
+	if len(server.systems) > 0 {
+		for _, sys := range server.systems {
+			if err := sys.OnClientConnect(client); err != nil {
+				server.logger.Error(fmt.Sprintf("System error on client connect notify. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
+			}
+		}
+	}
+}
+
+// 當有用戶登入時
+func (server *SocketServer) OnClientLogin(client *SocketClient) {
+	if len(server.systems) > 0 {
+		for _, sys := range server.systems {
+			if err := sys.OnClientLogin(client); err != nil {
+				server.logger.Error(fmt.Sprintf("System error on client login notify. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
+			}
+		}
+	}
+}
+
+// 當有客戶端斷線離開時
+func (server *SocketServer) OnClientDisconnect(client *SocketClient) {
+	if len(server.systems) > 0 {
+		for _, sys := range server.systems {
+			if err := sys.OnClientDisconnect(client); err != nil {
+				server.logger.Error(fmt.Sprintf("System error on client disconnect notify. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
+			}
+		}
+	}
+}
+
+// 當有用戶登出時
+func (server *SocketServer) OnClientLogout(client *SocketClient) {
+	if len(server.systems) > 0 {
+		for _, sys := range server.systems {
+			if err := sys.OnClientLogout(client); err != nil {
+				server.logger.Error(fmt.Sprintf("System error on client logout notify. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
+			}
+		}
+	}
+}
+
+// 執行流程
 func (server *SocketServer) RunOperation(req *SocketRequest) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -109,12 +211,30 @@ func (server *SocketServer) RunOperation(req *SocketRequest) {
 		}
 	}()
 
-	op, isExist := server.operationCmds[req.OperationCode()]
+	op, isExist := server.operations[req.OperationCode()]
 	if isExist {
-		err := op.Command(req)
-		if err != nil {
-			server.logger.Error(fmt.Sprintf("Operation error. Op code = %v, Cmd code = %v, error message => %v", req.OperationCode(), req.CommandCode(), err.Error()))
+		timeoutChannel := make(chan bool)
+
+		go func() {
+			err := op.Command(req)
+
+			if err != nil {
+				server.logger.Error(fmt.Sprintf("Operation error. Op code = %v, Cmd code = %v, error message => %v", req.OperationCode(), req.CommandCode(), err.Error()))
+			}
+
+			timeoutChannel <- true
+		}()
+
+		select {
+		case <-timeoutChannel:
+			// 正常執行
+			break
+		case <-time.After(time.Duration(server.opRunMaxTime) * time.Second):
+			// 流程執行超時
+			server.logger.Error(fmt.Sprintf("Operation time out for %v secs. Op code = %v, Cmd code = %v", server.opRunMaxTime, req.OperationCode(), req.CommandCode()))
+			break
 		}
+
 	} else {
 		server.logger.Warn(fmt.Sprintf("Operation not exist. Op code = %v", req.OperationCode()))
 	}
@@ -123,17 +243,16 @@ func (server *SocketServer) RunOperation(req *SocketRequest) {
 // 產生新的Socket Server
 func NewServer(name string, port int, log *logger.Logger) (server *SocketServer, err error) {
 	server = &SocketServer{
-		name:          name,
-		port:          port,
-		client_list:   make(map[string]*SocketClient),
-		logger:        log,
-		operationCmds: make(map[OperationCode]Operation),
+		name:         name,
+		port:         port,
+		client_list:  make(map[string]*SocketClient),
+		logger:       log,
+		operations:   make(map[OperationCode]Operation),
+		serialNum:    0,
+		opRunMaxTime: 5,
 	}
 
-	server.ctx = &ConnContext{
-		logger: log,
-	}
-	server.ctx.Context, server.cancel = context.WithCancel(context.TODO())
+	server.ctx, server.cancel = context.WithCancel(context.TODO())
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%v", server.port))
 	if err != nil {

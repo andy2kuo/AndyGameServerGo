@@ -1,6 +1,7 @@
 package socketserver
 
 import (
+	"context"
 	"errors"
 	"io"
 	"sync"
@@ -27,7 +28,7 @@ type SocketClient struct {
 	lastConnectTime time.Time     // 最後連線時間
 	time_out        time.Duration // 超時時間
 	connection      *net.TCPConn  // 客戶端連接口
-	conn_ctx        *ConnContext  // 123
+	conn_ctx        context.Context
 	logger          *logger.Logger
 	packer          *Packer
 	server          *SocketServer
@@ -68,61 +69,72 @@ func (client *SocketClient) StartProcess() {
 	go func() {
 		// 緩衝接收區
 		buffer := make([]byte, 2048)
-
+	Loop:
 		for client.connection != nil {
 			time.Sleep(time.Millisecond)
 
-			nowTime := time.Now().UTC()
-			_getDataLength, readErr := client.connection.Read(buffer)
-			if readErr == nil {
-				if _getDataLength > 0 {
-					client.lastConnectTime = nowTime
-					err := client.packer.Add(buffer[:_getDataLength])
-					if err != nil {
-						client.logger.Error(fmt.Sprintf("Socket add buffer fail. %v", err.Error()))
+			select {
+			case <-client.conn_ctx.Done():
+				break Loop
+			default:
+				nowTime := time.Now().UTC()
+				_getDataLength, readErr := client.connection.Read(buffer)
+				if readErr == nil {
+					if _getDataLength > 0 {
+						client.lastConnectTime = nowTime
+						err := client.packer.Add(buffer[:_getDataLength])
+						if err != nil {
+							client.logger.Error(fmt.Sprintf("Socket add buffer fail. %v", err.Error()))
+						}
 					}
-				}
-			} else {
-				if errors.Is(readErr, io.EOF) {
-					client.Close(DISCONNECT_BY_CLIENT_STOP)
-					break
+				} else {
+					if errors.Is(readErr, io.EOF) {
+						client.Close(ErrClientStop)
+						break Loop
+					}
+
+					client.logger.Error("Socket read fail. %v", readErr.Error())
+					continue
 				}
 
-				client.logger.Error("Socket read fail. %v", readErr.Error())
-				continue
-			}
-
-			for client.packer.Done() {
-				req := client.packer.GetWithClient(client)
-				go client.server.RunOperation(req)
+				for client.packer.Done() {
+					req := client.packer.GetWithClient(client)
+					go client.server.RunOperation(req)
+				}
 			}
 		}
 	}()
 
 	go func() {
+	Loop:
 		for {
 			time.Sleep(client.time_out)
 
-			if client.connection != nil {
-				if time.Now().UTC().Sub(client.lastConnectTime) > client.time_out {
-					client.logger.Warn("Client time out")
-					client.Close(DISCONNECT_BY_CLIENT_TIME_OUT)
-					break
+			select {
+			case <-client.conn_ctx.Done():
+				break Loop
+			default:
+				if client.connection != nil {
+					if time.Now().UTC().Sub(client.lastConnectTime) > client.time_out {
+						client.logger.Warn("Client time out")
+						client.Close(ErrConnectTimeOut)
+						break Loop
+					}
+				} else {
+					break Loop
 				}
-			} else {
-				break
 			}
 		}
 	}()
 }
 
 // 關閉客戶端連線
-func (client *SocketClient) Close(errCode ErrorCode) {
+func (client *SocketClient) Close(err error) {
 	defer func() {
 		if client.connection != nil {
 			client.connection.Close()
 			client.connection = nil
-			client.logger.Info("Client Close. Reason:", errCode.Int())
+			client.logger.Info("Client Close. Reason:", err.Error())
 		}
 	}()
 
@@ -232,7 +244,7 @@ func (client *SocketClient) SetLogout() error {
 }
 
 // 產生新的客戶端
-func NewClient(id string, server *SocketServer, ctx *ConnContext, conn *net.TCPConn) *SocketClient {
+func NewClient(id string, server *SocketServer, ctx context.Context, conn *net.TCPConn) *SocketClient {
 	new_client := &SocketClient{
 		id:              id,
 		connectTime:     time.Now().UTC(),
@@ -241,7 +253,7 @@ func NewClient(id string, server *SocketServer, ctx *ConnContext, conn *net.TCPC
 		connection:      conn,
 		conn_ctx:        ctx,
 		server:          server,
-		logger:          ctx.Log(),
+		logger:          server.logger,
 		customInfo:      make(map[ClientInfoCode]interface{}),
 	}
 
