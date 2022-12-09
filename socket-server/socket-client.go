@@ -33,8 +33,6 @@ type SocketClient struct {
 	packer          *Packer
 	server          *SocketServer
 
-	isLogin bool // 是否登入
-
 	customInfo map[ClientInfoCode]interface{}
 }
 
@@ -93,7 +91,7 @@ func (client *SocketClient) StartProcess() {
 						break Loop
 					}
 
-					client.logger.Error("Socket read fail. %v", readErr.Error())
+					client.logger.Error(fmt.Sprintf("Socket read fail. %v", readErr.Error()))
 					continue
 				}
 
@@ -137,11 +135,6 @@ func (client *SocketClient) Close(err error) {
 			client.logger.Info("Client Close. Reason:", err.Error())
 		}
 	}()
-
-	//
-	if client.isLogin {
-		client.SetLogout()
-	}
 }
 
 // 發送封包
@@ -172,23 +165,6 @@ func (client *SocketClient) Send(opCode OperationCode, cmdCode CommandCode, reqD
 		client.logger.Error("Client send data fail, connection error => Empty")
 		return ErrConnectionNull
 	}
-}
-
-// 設定此連線玩家登入資料
-func (client *SocketClient) SetLogin(loginInfo map[ClientInfoCode]interface{}) error {
-	client.Lock()
-	defer client.Unlock()
-
-	if !client.isLogin {
-		for code, data := range loginInfo {
-			client.Set(code, data)
-		}
-		client.isLogin = true
-	} else {
-		return ErrClientHadLogin
-	}
-
-	return nil
 }
 
 // 設定自訂資料
@@ -231,16 +207,6 @@ func (client *SocketClient) ClearAll() {
 	defer client.Unlock()
 
 	client.customInfo = make(map[ClientInfoCode]interface{})
-}
-
-// 清空此連線玩家登入資料
-func (client *SocketClient) SetLogout() error {
-	client.Lock()
-	defer client.Unlock()
-
-	client.isLogin = false
-
-	return nil
 }
 
 // 產生新的客戶端

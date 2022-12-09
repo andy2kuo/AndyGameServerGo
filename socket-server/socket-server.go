@@ -140,7 +140,7 @@ func (server *SocketServer) close() {
 func (server *SocketServer) AddOperation(op Operation) error {
 	_, isExist := server.operations[op.GetOperationCode()]
 	if isExist {
-		server.logger.Warn("Op: %v Duplicate!", op.GetOperationCode())
+		server.logger.Warn(fmt.Sprintf("Op: %v Duplicate!", op.GetOperationCode()))
 	}
 
 	server.operations[op.GetOperationCode()] = op
@@ -151,7 +151,7 @@ func (server *SocketServer) AddOperation(op Operation) error {
 func (server *SocketServer) AddSubSystem(sys SubSystem) error {
 	_, isExist := server.systems[sys.GetSystemCode()]
 	if isExist {
-		server.logger.Warn("Sys: %v Duplicate!", sys.GetSystemCode())
+		server.logger.Warn(fmt.Sprintf("Sys: %v Duplicate!", sys.GetSystemCode()))
 	}
 
 	server.systems[sys.GetSystemCode()] = sys
@@ -169,17 +169,6 @@ func (server *SocketServer) OnClientConnect(client *SocketClient) {
 	}
 }
 
-// 當有用戶登入時
-func (server *SocketServer) OnClientLogin(client *SocketClient) {
-	if len(server.systems) > 0 {
-		for _, sys := range server.systems {
-			if err := sys.OnClientLogin(client); err != nil {
-				server.logger.Error(fmt.Sprintf("System error on client login notify. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
-			}
-		}
-	}
-}
-
 // 當有客戶端斷線離開時
 func (server *SocketServer) OnClientDisconnect(client *SocketClient) {
 	if len(server.systems) > 0 {
@@ -191,12 +180,12 @@ func (server *SocketServer) OnClientDisconnect(client *SocketClient) {
 	}
 }
 
-// 當有用戶登出時
-func (server *SocketServer) OnClientLogout(client *SocketClient) {
+// 當有用戶事件通知時
+func (server *SocketServer) OnEventNotify(client *SocketClient, sysEvent SystemEvent) {
 	if len(server.systems) > 0 {
 		for _, sys := range server.systems {
-			if err := sys.OnClientLogout(client); err != nil {
-				server.logger.Error(fmt.Sprintf("System error on client logout notify. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
+			if err := sys.OnEventNotify(client, sysEvent); err != nil {
+				server.logger.Error(fmt.Sprintf("System error on client event notify. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
 			}
 		}
 	}
