@@ -6,7 +6,7 @@ type SystemCode byte
 type SystemEventCode byte
 
 // 共用系統
-type SubSystem interface {
+type CommonSystem interface {
 	GetSystemCode() SystemCode
 	Start() error
 	OnSystemInit(*SocketServer, *logger.Logger) error

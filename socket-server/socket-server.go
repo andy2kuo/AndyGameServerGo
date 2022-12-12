@@ -18,7 +18,7 @@ type SocketServer struct {
 	port         int                      // 連接埠
 	listener     *net.TCPListener         // 伺服器監聽端
 	client_list  map[string]*SocketClient // 已連接客戶端列表
-	systems      map[SystemCode]SubSystem
+	systems      map[SystemCode]CommonSystem
 	operations   map[OperationCode]Operation
 	logger       *logger.Logger
 	ctx          context.Context
@@ -148,7 +148,7 @@ func (server *SocketServer) AddOperation(op Operation) error {
 }
 
 // 加入共用系統
-func (server *SocketServer) AddSubSystem(sys SubSystem) error {
+func (server *SocketServer) AddSubSystem(sys CommonSystem) error {
 	_, isExist := server.systems[sys.GetSystemCode()]
 	if isExist {
 		server.logger.Warn(fmt.Sprintf("Sys: %v Duplicate!", sys.GetSystemCode()))
