@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	commonsystem "github.com/andy2kuo/AndyGameServerGo/common-system"
 	"github.com/andy2kuo/AndyGameServerGo/logger"
 )
 
@@ -18,7 +19,7 @@ type SocketServer struct {
 	port         int                      // 連接埠
 	listener     *net.TCPListener         // 伺服器監聽端
 	client_list  map[string]*SocketClient // 已連接客戶端列表
-	systems      map[SystemCode]CommonSystem
+	systems      map[commonsystem.SystemCode]commonsystem.CommonSystem
 	operations   map[OperationCode]Operation
 	logger       *logger.Logger
 	ctx          context.Context
@@ -148,22 +149,22 @@ func (server *SocketServer) AddOperation(op Operation) error {
 }
 
 // 加入共用系統
-func (server *SocketServer) AddSubSystem(sys CommonSystem) error {
+func (server *SocketServer) AddSubSystem(sys commonsystem.CommonSystem) error {
 	_, isExist := server.systems[sys.GetSystemCode()]
 	if isExist {
 		server.logger.Warn(fmt.Sprintf("Sys: %v Duplicate!", sys.GetSystemCode()))
 	}
 
 	server.systems[sys.GetSystemCode()] = sys
-	return sys.OnSystemInit(server, server.logger)
+	return sys.OnSystemInit(server.logger)
 }
 
 // 當有新的客戶端連線進入時
 func (server *SocketServer) OnClientConnect(client *SocketClient) {
-	if len(server.systems) > 0 {
-		for _, sys := range server.systems {
-			if err := sys.OnClientConnect(client); err != nil {
-				server.logger.Error(fmt.Sprintf("System error on client connect notify. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
+	if len(server.operations) > 0 {
+		for _, op := range server.operations {
+			if err := op.OnClientConnect(client); err != nil {
+				server.logger.Error(fmt.Sprintf("Operation error on client connect notify. Op code = %v, error message => %v", op.GetOperationCode(), err.Error()))
 			}
 		}
 	}
@@ -171,21 +172,21 @@ func (server *SocketServer) OnClientConnect(client *SocketClient) {
 
 // 當有客戶端斷線離開時
 func (server *SocketServer) OnClientDisconnect(client *SocketClient) {
-	if len(server.systems) > 0 {
-		for _, sys := range server.systems {
-			if err := sys.OnClientDisconnect(client); err != nil {
-				server.logger.Error(fmt.Sprintf("System error on client disconnect notify. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
+	if len(server.operations) > 0 {
+		for _, op := range server.operations {
+			if err := op.OnClientDisconnect(client); err != nil {
+				server.logger.Error(fmt.Sprintf("Operation error on client disconnect notify. Op code = %v, error message => %v", op.GetOperationCode(), err.Error()))
 			}
 		}
 	}
 }
 
 // 當有用戶事件通知時
-func (server *SocketServer) OnEventNotify(client *SocketClient, sysEvent SystemEvent) {
-	if len(server.systems) > 0 {
-		for _, sys := range server.systems {
-			if err := sys.OnEventNotify(client, sysEvent); err != nil {
-				server.logger.Error(fmt.Sprintf("System error on client event notify. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
+func (server *SocketServer) OnEventNotify(client *SocketClient, sysEvent OperationEvent) {
+	if len(server.operations) > 0 {
+		for _, op := range server.operations {
+			if err := op.OnEventNotify(client, sysEvent); err != nil {
+				server.logger.Error(fmt.Sprintf("Operation error on client event notify. Op code = %v, error message => %v", op.GetOperationCode(), err.Error()))
 			}
 		}
 	}
