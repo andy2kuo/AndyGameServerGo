@@ -53,7 +53,6 @@ func defaultConfig(config ConfigBase) (default_file *ini.File) {
 						section.NewKey(f.Name, "Empty")
 					}
 				}
-				fmt.Printf("'%v'\n", f.Tag.Get("default"))
 			}
 		}
 	}
