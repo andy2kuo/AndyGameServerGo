@@ -5,7 +5,7 @@ import "github.com/andy2kuo/AndyGameServerGo/logger"
 type OperationEventCode byte
 
 // 流程器
-type Operation interface {
+type IOperation interface {
 	GetOperationCode() OperationCode
 	Command(*SocketRequest) error
 	OnOperationInit(*SocketServer, *logger.Logger) error
@@ -26,7 +26,7 @@ func NewOperationEvent(code OperationEventCode) OperationEvent {
 // 流程事件
 type OperationEvent struct {
 	opEventCode OperationEventCode
-	eventData    ReqData
+	eventData   ReqData
 }
 
 // 取得流程事件編號

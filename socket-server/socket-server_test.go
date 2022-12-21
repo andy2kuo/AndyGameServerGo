@@ -11,7 +11,7 @@ func TestSocketServer(t *testing.T) {
 	startTime := time.Now().UnixNano()
 
 	logger := logger.NewLogger("test", "local-test", 0)
-	server, err := NewServer("test", 8309, logger)
+	server, err := NewServer(logger)
 	if err != nil {
 		t.Error(err)
 		return

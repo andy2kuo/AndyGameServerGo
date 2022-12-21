@@ -215,7 +215,7 @@ func NewClient(id string, server *SocketServer, ctx context.Context, conn *net.T
 		id:              id,
 		connectTime:     time.Now().UTC(),
 		lastConnectTime: time.Now().UTC(),
-		time_out:        time.Second * 30,
+		time_out:        time.Second * time.Duration(server.AppSetting.Server.TimeOut),
 		connection:      conn,
 		conn_ctx:        ctx,
 		server:          server,

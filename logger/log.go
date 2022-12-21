@@ -21,7 +21,6 @@ const (
 type Logger struct {
 	log_filePath string
 	log_name     string
-	log_env      string
 
 	log_level     int
 	rowCount      int
@@ -38,7 +37,7 @@ type Logger struct {
 }
 
 func NewLogger(name, env string, level int) *Logger {
-	logger := &Logger{log_name: name, log_env: env, log_level: level}
+	logger := &Logger{log_name: name, log_level: level}
 	logger.init()
 
 	return logger
@@ -53,14 +52,12 @@ func (logger *Logger) init() {
 	logger.maxRowPerFile = 1000
 
 	os.MkdirAll("Log", 0755)
-	os.MkdirAll(fmt.Sprintf("Log/%v", logger.log_env), 0755)
-	os.MkdirAll(fmt.Sprintf("Log/%v/%v", logger.log_env, logger.log_name), 0755)
+	os.MkdirAll(fmt.Sprintf("Log/%v", logger.log_name), 0755)
 
-	logger.log_filePath = fmt.Sprintf("Log/%v/%v", logger.log_env, logger.log_name)
+	logger.log_filePath = fmt.Sprintf("Log/%v", logger.log_name)
 	logger.refresh()
 }
 
-// 
 func (logger *Logger) SetMaxRowPerFile(rowCount int) {
 	logger.maxRowPerFile = rowCount
 }

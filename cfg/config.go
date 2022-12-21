@@ -12,7 +12,10 @@ import (
 	"gopkg.in/ini.v1"
 )
 
-type ConfigBase interface {
+var ErrCreateNewConfig error = errors.New("load config by create new one")
+var ErrLoadConfig error = errors.New("load config on path")
+
+type IConfig interface {
 	Name() string
 }
 
@@ -146,7 +149,7 @@ func loadSection(section_type reflect.Type, config_file *ini.File) reflect.Value
 	return new_section_value
 }
 
-func GetConfig(config_data ConfigBase) error {
+func GetConfig(config_data IConfig) (err error) {
 	if reflect.TypeOf(config_data).Kind() != reflect.Ptr {
 		return fmt.Errorf("not a pointer")
 	}
@@ -155,12 +158,13 @@ func GetConfig(config_data ConfigBase) error {
 	var ini_path string = path.Join("Config", ini_name)
 	var ini_file *ini.File
 
-	if _, err := os.Stat(ini_path); errors.Is(err, os.ErrNotExist) {
+	if _, err = os.Stat(ini_path); errors.Is(err, os.ErrNotExist) {
 		_file, _ := os.Create(ini_path)
 		_file.Close()
 
 		ini_file = createConfig(config_data)
 		ini_file.SaveTo(ini_path)
+		err = ErrCreateNewConfig
 	} else {
 		ini_file, err = ini.Load(ini_path)
 		if err != nil {
@@ -169,7 +173,16 @@ func GetConfig(config_data ConfigBase) error {
 
 		loadConfig(config_data, ini_file)
 		ini_file.SaveTo(ini_path)
+		err = ErrLoadConfig
 	}
 
-	return nil
+	return err
+}
+
+func IsCreateNew(err error) bool {
+	return errors.Is(err, ErrCreateNewConfig)
+}
+
+func IsLoadOnPath(err error) bool {
+	return errors.Is(err, ErrLoadConfig)
 }

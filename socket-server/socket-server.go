@@ -9,23 +9,23 @@ import (
 	"syscall"
 	"time"
 
+	config "github.com/andy2kuo/AndyGameServerGo/cfg"
 	commonsystem "github.com/andy2kuo/AndyGameServerGo/common-system"
 	"github.com/andy2kuo/AndyGameServerGo/logger"
 )
 
 // 伺服器
 type SocketServer struct {
-	name         string                   // 伺服器名稱
-	port         int                      // 連接埠
-	listener     *net.TCPListener         // 伺服器監聽端
-	client_list  map[string]*SocketClient // 已連接客戶端列表
-	systems      map[commonsystem.SystemCode]commonsystem.CommonSystem
-	operations   map[OperationCode]Operation
-	logger       *logger.Logger
-	ctx          context.Context
-	cancel       context.CancelFunc
-	serialNum    uint64
-	opRunMaxTime int // 流程執行最大秒數
+	listener    *net.TCPListener         // 伺服器監聽端
+	client_list map[string]*SocketClient // 已連接客戶端列表
+	systems     map[commonsystem.SystemCode]commonsystem.ICommonSystem
+	operations  map[OperationCode]IOperation
+	logger      *logger.Logger
+	ctx         context.Context
+	cancel      context.CancelFunc
+	serialNum   uint64
+
+	AppSetting *AppSetting
 }
 
 // 啟動
@@ -138,7 +138,7 @@ func (server *SocketServer) close() {
 }
 
 // 加入流程器
-func (server *SocketServer) AddOperation(op Operation) error {
+func (server *SocketServer) AddOperation(op IOperation) error {
 	_, isExist := server.operations[op.GetOperationCode()]
 	if isExist {
 		server.logger.Warn(fmt.Sprintf("Op: %v Duplicate!", op.GetOperationCode()))
@@ -149,7 +149,7 @@ func (server *SocketServer) AddOperation(op Operation) error {
 }
 
 // 加入共用系統
-func (server *SocketServer) AddSubSystem(sys commonsystem.CommonSystem) error {
+func (server *SocketServer) AddSubSystem(sys commonsystem.ICommonSystem) error {
 	_, isExist := server.systems[sys.GetSystemCode()]
 	if isExist {
 		server.logger.Warn(fmt.Sprintf("Sys: %v Duplicate!", sys.GetSystemCode()))
@@ -157,6 +157,17 @@ func (server *SocketServer) AddSubSystem(sys commonsystem.CommonSystem) error {
 
 	server.systems[sys.GetSystemCode()] = sys
 	return sys.OnSystemInit(server.logger)
+}
+
+// 取得共用系統
+func (server *SocketServer) GetCommonSystem(sysCode commonsystem.SystemCode) commonsystem.ICommonSystem {
+	sys, isExist := server.systems[sysCode]
+	if isExist {
+		return sys
+	}
+
+	server.logger.Warn(fmt.Sprintf("Sys: Get System %v fail", sysCode))
+	return nil
 }
 
 // 當有新的客戶端連線進入時
@@ -219,9 +230,9 @@ func (server *SocketServer) RunOperation(req *SocketRequest) {
 		case <-timeoutChannel:
 			// 正常執行
 			break
-		case <-time.After(time.Duration(server.opRunMaxTime) * time.Second):
+		case <-time.After(time.Duration(server.AppSetting.Operation.RunMaxTime) * time.Second):
 			// 流程執行超時
-			server.logger.Error(fmt.Sprintf("Operation time out for %v secs. Op code = %v, Cmd code = %v", server.opRunMaxTime, req.OperationCode(), req.CommandCode()))
+			server.logger.Error(fmt.Sprintf("Operation time out for %v secs. Op code = %v, Cmd code = %v", server.AppSetting.Operation.RunMaxTime, req.OperationCode(), req.CommandCode()))
 			break
 		}
 
@@ -231,20 +242,24 @@ func (server *SocketServer) RunOperation(req *SocketRequest) {
 }
 
 // 產生新的Socket Server
-func NewServer(name string, port int, log *logger.Logger) (server *SocketServer, err error) {
+func NewServer(log *logger.Logger) (server *SocketServer, err error) {
 	server = &SocketServer{
-		name:         name,
-		port:         port,
-		client_list:  make(map[string]*SocketClient),
-		logger:       log,
-		operations:   make(map[OperationCode]Operation),
-		serialNum:    0,
-		opRunMaxTime: 5,
+		client_list: make(map[string]*SocketClient),
+		logger:      log,
+		operations:  make(map[OperationCode]IOperation),
+		serialNum:   0,
 	}
 
+	var _setting *AppSetting = &AppSetting{}
+	_setting_err := config.GetConfig(_setting)
+	if config.IsCreateNew(_setting_err) {
+		server.logger.Info("Create new application setting file")
+	}
+
+	server.AppSetting = _setting
 	server.ctx, server.cancel = context.WithCancel(context.TODO())
 
-	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%v", server.port))
+	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%v", server.AppSetting.Server.Port))
 	if err != nil {
 		return server, err
 	}
