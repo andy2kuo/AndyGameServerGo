@@ -30,7 +30,7 @@ func createConfig(config_data interface{}) (config_file *ini.File) {
 	data_type := data_value.Type()
 
 	for i := 0; i < data_type.Elem().NumField(); i++ {
-		section_value := loadSection(data_type.Elem().Field(i).Type, config_file)
+		section_value := loadSection(data_type.Elem().Field(i).Name, data_type.Elem().Field(i).Type, config_file)
 		data_value.Elem().Field(i).Set(section_value.Elem())
 	}
 
@@ -42,20 +42,20 @@ func loadConfig(config_data interface{}, config_file *ini.File) {
 	data_type := data_value.Type()
 
 	for i := 0; i < data_type.Elem().NumField(); i++ {
-		section_value := loadSection(data_type.Elem().Field(i).Type, config_file)
+		section_value := loadSection(data_type.Elem().Field(i).Name, data_type.Elem().Field(i).Type, config_file)
 		data_value.Elem().Field(i).Set(section_value.Elem())
 	}
 }
 
-func loadSection(section_type reflect.Type, config_file *ini.File) reflect.Value {
+func loadSection(section_name string, section_type reflect.Type, config_file *ini.File) reflect.Value {
 	new_section_value := reflect.New(section_type)
 	var config_section_info *ini.Section
-	var _is_section_exist bool = config_file.HasSection(section_type.Name())
+	var _is_section_exist bool = config_file.HasSection(section_name)
 
 	if _is_section_exist {
-		config_section_info, _ = config_file.GetSection(section_type.Name())
+		config_section_info, _ = config_file.GetSection(section_name)
 	} else {
-		config_section_info, _ = config_file.NewSection(section_type.Name())
+		config_section_info, _ = config_file.NewSection(section_name)
 	}
 
 	for i := 0; i < new_section_value.Elem().NumField(); i++ {

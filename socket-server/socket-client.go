@@ -23,11 +23,10 @@ var ErrClientHadLogin error = errors.New("client is login")
 type SocketClient struct {
 	sync.RWMutex
 
-	id              string        // 客戶端編號
-	connectTime     time.Time     // 連線時間
-	lastConnectTime time.Time     // 最後連線時間
-	time_out        time.Duration // 超時時間
-	connection      *net.TCPConn  // 客戶端連接口
+	id              string       // 客戶端編號
+	connectTime     time.Time    // 連線時間
+	lastConnectTime time.Time    // 最後連線時間
+	connection      *net.TCPConn // 客戶端連接口
 	conn_ctx        context.Context
 	logger          *logger.Logger
 	packer          *Packer
@@ -39,7 +38,9 @@ type SocketClient struct {
 // 開始客戶端進程
 func (client *SocketClient) StartProcess() {
 	client.connection.SetKeepAlive(true)
-	client.connection.SetKeepAlivePeriod(client.time_out)
+	client.connection.SetKeepAlivePeriod(time.Second * time.Duration(client.server.AppSetting.Server.TimeOut))
+	client.connection.SetReadBuffer(client.server.AppSetting.Server.ReadBuffer)
+	client.connection.SetWriteBuffer(client.server.AppSetting.Server.WriteBuffer)
 
 	// Getting the file handle of the socket
 	sockFile, sockErr := client.connection.File()
@@ -66,7 +67,7 @@ func (client *SocketClient) StartProcess() {
 	// 接收封包
 	go func() {
 		// 緩衝接收區
-		buffer := make([]byte, 2048)
+		buffer := make([]byte, client.server.AppSetting.Server.ReadBuffer)
 	Loop:
 		for client.connection != nil {
 			time.Sleep(time.Millisecond)
@@ -76,6 +77,7 @@ func (client *SocketClient) StartProcess() {
 				break Loop
 			default:
 				nowTime := time.Now().UTC()
+				client.connection.SetReadDeadline(time.Now().Add(time.Second * time.Duration(client.server.AppSetting.Server.TimeOut)))
 				_getDataLength, readErr := client.connection.Read(buffer)
 				if readErr == nil {
 					if _getDataLength > 0 {
@@ -104,17 +106,18 @@ func (client *SocketClient) StartProcess() {
 	}()
 
 	go func() {
+		time_out := time.Second * time.Duration(client.server.AppSetting.Server.TimeOut)
 	Loop:
 		for {
-			time.Sleep(client.time_out)
+			time.Sleep(time_out)
 
 			select {
 			case <-client.conn_ctx.Done():
 				break Loop
 			default:
 				if client.connection != nil {
-					if time.Now().UTC().Sub(client.lastConnectTime) > client.time_out {
-						client.logger.Warn("Client time out")
+					if time.Now().UTC().Sub(client.lastConnectTime) > time_out {
+						client.logger.Warn(fmt.Sprintf("Client from %v time out", client.connection.RemoteAddr().String()))
 						client.Close(ErrConnectTimeOut)
 						break Loop
 					}
@@ -149,6 +152,7 @@ func (client *SocketClient) Send(opCode OperationCode, cmdCode CommandCode, reqD
 	}
 
 	if client.connection != nil {
+		client.connection.SetWriteDeadline(time.Now().Add(time.Second * time.Duration(client.server.AppSetting.Server.WriteTimeOut)))
 		_, err := client.connection.Write(byteData)
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
@@ -215,7 +219,6 @@ func NewClient(id string, server *SocketServer, ctx context.Context, conn *net.T
 		id:              id,
 		connectTime:     time.Now().UTC(),
 		lastConnectTime: time.Now().UTC(),
-		time_out:        time.Second * time.Duration(server.AppSetting.Server.TimeOut),
 		connection:      conn,
 		conn_ctx:        ctx,
 		server:          server,

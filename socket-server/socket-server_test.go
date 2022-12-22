@@ -7,6 +7,10 @@ import (
 	"github.com/andy2kuo/AndyGameServerGo/logger"
 )
 
+func TestForTest(t *testing.T) {
+	t.Log(123)
+}
+
 func TestSocketServer(t *testing.T) {
 	startTime := time.Now().UnixNano()
 
@@ -27,5 +31,5 @@ func TestSocketServer(t *testing.T) {
 	}
 
 	t.Log("test over")
-	t.Log(time.Now().UnixNano() - startTime)
+	t.Log((time.Now().UnixNano() - startTime) / int64(time.Second))
 }
