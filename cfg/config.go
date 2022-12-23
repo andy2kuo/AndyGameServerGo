@@ -14,6 +14,7 @@ import (
 
 var ErrCreateNewConfig error = errors.New("load config by create new one")
 var ErrLoadConfig error = errors.New("load config on path")
+var tempConfigMap map[string]IConfig
 
 type IConfig interface {
 	Name() string
@@ -21,6 +22,7 @@ type IConfig interface {
 
 func init() {
 	os.MkdirAll("Config", 0755)
+	tempConfigMap = make(map[string]IConfig)
 }
 
 func createConfig(config_data interface{}) (config_file *ini.File) {
@@ -154,6 +156,12 @@ func GetConfig(config_data IConfig) (err error) {
 		return fmt.Errorf("not a pointer")
 	}
 
+	// 檢查此設定檔是否已經讀取過
+	if _, isLoaded := tempConfigMap[config_data.Name()]; isLoaded {
+		config_data = tempConfigMap[config_data.Name()]
+		return ErrLoadConfig
+	}
+
 	var ini_name string = fmt.Sprintf("%v.%v", config_data.Name(), "ini")
 	var ini_path string = path.Join("Config", ini_name)
 	var ini_file *ini.File
@@ -176,6 +184,7 @@ func GetConfig(config_data IConfig) (err error) {
 		err = ErrLoadConfig
 	}
 
+	tempConfigMap[config_data.Name()] = config_data
 	return err
 }
 
