@@ -1,15 +1,18 @@
 package database
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 )
 
-var tempRedisClient map[string]*redis.Client
+var ErrDuplicateRedisConn error = errors.New("duplicate redis connection")
+var ErrRedisConnNotExist error = errors.New("redis connection not exist")
 
-type RedisConnection struct {
+type RedisConnSetting struct {
 	Name         string `default:"db name"`
 	Address      string `default:"127.0.0.1"`
 	Port         int    `default:"6379"`
@@ -24,13 +27,32 @@ type RedisConnection struct {
 	Comment      string `default:"Comment for db"`
 }
 
-func GetRedisClient(_config RedisConnection) (cli *redis.Client, err error) {
-	cli, isExist := tempRedisClient[_config.Name]
-	if isExist {
-		return cli, nil
+func NewRedisConnection(_redisConnSettings ...RedisConnSetting) (_redisConn *RedisConnection, err error) {
+	_redisConn = &RedisConnection{
+		tempRedisClient: make(map[string]*redis.Client),
 	}
 
-	cli = redis.NewClient(&redis.Options{
+	for _, _connSetting := range _redisConnSettings {
+		err = _redisConn.addConnection(_connSetting)
+		if err != nil {
+			return _redisConn, err
+		}
+	}
+	
+	return _redisConn, nil
+}
+
+type RedisConnection struct {
+	tempRedisClient map[string]*redis.Client
+}
+
+func (conn *RedisConnection) addConnection(_config RedisConnSetting) error {
+	_, isExist := conn.tempRedisClient[_config.Name]
+	if isExist {
+		return ErrDuplicateRedisConn
+	}
+
+	cli := redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%v:%v", _config.Address, _config.Port),
 		DB:           _config.DB,
 		PoolSize:     _config.PoolSize,
@@ -42,7 +64,41 @@ func GetRedisClient(_config RedisConnection) (cli *redis.Client, err error) {
 		MinIdleConns: _config.MinIdleConns,
 	})
 
-	tempRedisClient[_config.Name] = cli
+	_, err := cli.Ping(context.Background()).Result()
+	if err != nil {
+		return err
+	}
+
+	conn.tempRedisClient[_config.Name] = cli
+	return nil
+}
+
+func (conn *RedisConnection) GetRedis(name string) (cli *redis.Client, err error) {
+	cli, isExist := conn.tempRedisClient[name]
+	if !isExist {
+		return nil, ErrRedisConnNotExist
+	}
 
 	return cli, nil
+}
+
+func (conn *RedisConnection) Disconnect(name string) (err error) {
+	cli, isExist := conn.tempRedisClient[name]
+	if !isExist || cli == nil {
+		return nil
+	}
+
+	delete(conn.tempRedisClient, name)
+	return cli.Close()
+}
+
+func (conn *RedisConnection) DisconnectAll() (err error) {
+	for name := range conn.tempRedisClient {
+		err = conn.Disconnect(name)
+		if err != nil {
+			return fmt.Errorf("redis '%v' close fail. msg => %v", name, err.Error())
+		}
+	}
+
+	return nil
 }

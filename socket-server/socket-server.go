@@ -11,6 +11,7 @@ import (
 
 	config "github.com/andy2kuo/AndyGameServerGo/cfg"
 	commonsystem "github.com/andy2kuo/AndyGameServerGo/common-system"
+	"github.com/andy2kuo/AndyGameServerGo/database"
 	"github.com/andy2kuo/AndyGameServerGo/logger"
 )
 
@@ -24,6 +25,8 @@ type SocketServer struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	serialNum   uint64
+	mongoConn   *database.MongoConnection
+	redisConn   *database.RedisConnection
 
 	AppSetting *AppSetting
 }
@@ -156,7 +159,7 @@ func (server *SocketServer) AddSubSystem(sys commonsystem.ICommonSystem) error {
 	}
 
 	server.systems[sys.GetSystemCode()] = sys
-	return sys.OnSystemInit(server.logger)
+	return sys.OnSystemInit(server.logger, server.mongoConn, server.redisConn)
 }
 
 // 取得共用系統
@@ -242,12 +245,14 @@ func (server *SocketServer) RunOperation(req *SocketRequest) {
 }
 
 // 產生新的Socket Server
-func NewServer(log *logger.Logger) (server *SocketServer, err error) {
+func NewServer(log *logger.Logger, _mongoConn *database.MongoConnection, _redisConn *database.RedisConnection) (server *SocketServer, err error) {
 	server = &SocketServer{
 		client_list: make(map[string]*SocketClient),
 		logger:      log,
 		operations:  make(map[OperationCode]IOperation),
 		serialNum:   0,
+		mongoConn:   _mongoConn,
+		redisConn:   _redisConn,
 	}
 
 	var _setting *AppSetting = &AppSetting{}

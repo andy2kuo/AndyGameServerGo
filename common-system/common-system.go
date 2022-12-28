@@ -1,6 +1,9 @@
 package commonsystem
 
-import "github.com/andy2kuo/AndyGameServerGo/logger"
+import (
+	"github.com/andy2kuo/AndyGameServerGo/database"
+	"github.com/andy2kuo/AndyGameServerGo/logger"
+)
 
 type SystemCode byte
 
@@ -8,7 +11,7 @@ type SystemCode byte
 type ICommonSystem interface {
 	GetSystemCode() SystemCode
 	Start() error
-	OnSystemInit(*logger.Logger) error
+	OnSystemInit(*logger.Logger, *database.MongoConnection, *database.RedisConnection) error
 	OnServerStart() error
 	OnServerClose() error
 }

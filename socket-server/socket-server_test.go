@@ -4,8 +4,19 @@ import (
 	"testing"
 	"time"
 
+	config "github.com/andy2kuo/AndyGameServerGo/cfg"
+	"github.com/andy2kuo/AndyGameServerGo/database"
 	"github.com/andy2kuo/AndyGameServerGo/logger"
 )
+
+type TestDatabaseSetting struct {
+	Redis database.RedisConnSetting
+	Mongo database.MongoConnSetting
+}
+
+func (TestDatabaseSetting) Name() string {
+	return "TestDB"
+}
 
 func TestForTest(t *testing.T) {
 	t.Log(123)
@@ -13,9 +24,22 @@ func TestForTest(t *testing.T) {
 
 func TestSocketServer(t *testing.T) {
 	startTime := time.Now().UnixNano()
+	_config := &TestDatabaseSetting{}
+	config.GetConfig(_config)
 
 	logger := logger.NewLogger("test", "local-test", 0)
-	server, err := NewServer(logger)
+	_mongoConn, err := database.NewMongoConnection("TestServer", _config.Mongo)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	_redisConn, err := database.NewRedisConnection(_config.Redis)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	server, err := NewServer(logger, _mongoConn, _redisConn)
 	if err != nil {
 		t.Error(err)
 		return
