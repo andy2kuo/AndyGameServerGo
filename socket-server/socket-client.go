@@ -141,11 +141,11 @@ func (client *SocketClient) Close(err error) {
 }
 
 // 發送封包
-func (client *SocketClient) Send(opCode OperationCode, cmdCode CommandCode, reqData ReqData) error {
+func (client *SocketClient) Send(reqTime time.Time, opCode OperationCode, cmdCode CommandCode, reqData ReqData) error {
 	client.Lock()
 	defer client.Unlock()
 
-	byteData, err := client.packer.PackData(opCode, cmdCode, reqData)
+	byteData, err := client.packer.PackData(reqTime, opCode, cmdCode, reqData)
 
 	if err != nil {
 		return err

@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 )
 
 func NewPacket(client *SocketClient) (p *Packer) {
 	p = &Packer{
 		buffer:        make([]byte, 0),
-		tempRequests:  make(map[int]*SocketRequest),
+		tempRequests:  make(map[uint8]*SocketRequest),
 		nowDataLength: 0,
 		nowIndex:      0,
 		maxIndex:      0,
@@ -24,12 +25,12 @@ type Packer struct {
 	sync.RWMutex
 
 	buffer       []byte
-	tempRequests map[int]*SocketRequest
+	tempRequests map[uint8]*SocketRequest
 
 	nowDataLength int32
 
-	nowIndex int
-	maxIndex int
+	nowIndex uint8
+	maxIndex uint8
 }
 
 func (p *Packer) Done() bool {
@@ -53,14 +54,18 @@ func (p *Packer) GetWithClient(client *SocketClient) (req *SocketRequest) {
 	return req
 }
 
-func (p *Packer) Get(client *SocketClient) (req *SocketRequest) {
+func (p *Packer) Get() (req *SocketRequest) {
 	p.RLock()
 	defer p.RUnlock()
 
 	if len(p.tempRequests) > 0 {
 		req = p.tempRequests[p.nowIndex]
 		delete(p.tempRequests, p.nowIndex)
-		p.nowIndex++
+		if p.nowIndex < 255 {
+			p.nowIndex++
+		} else {
+			p.nowIndex = 0
+		}
 	}
 
 	return req
@@ -114,36 +119,51 @@ func (p *Packer) Add(data []byte) (err error) {
 func (p *Packer) transferData(data []byte) (err error) {
 	err = nil
 
-	var data_index int = 0
+	data_buff := bytes.NewBuffer(data)
+
+	var uid ReqUID
+	bd_uid := data_buff.Next(8)
+	if len(bd_uid) < 8 {
+		return fmt.Errorf("request unpack fail. invalid uid")
+	}
+	binary.Read(bytes.NewBuffer(bd_uid), binary.BigEndian, &uid)
 
 	// Operation Code
-
-	opCode := OperationCode(data[data_index])
-	data_index++
+	var opCode OperationCode
+	bd_opCode := data_buff.Next(1)
+	if len(bd_uid) < 1 {
+		return fmt.Errorf("request unpack fail. invalid op code")
+	}
+	binary.Read(bytes.NewBuffer(bd_opCode), binary.BigEndian, &opCode)
 
 	// Comand Code
-
-	cmdCode := CommandCode(data[data_index])
-	data_index++
+	var cmdCode CommandCode
+	bd_cmdCode := data_buff.Next(1)
+	if len(bd_uid) < 1 {
+		return fmt.Errorf("request unpack fail. invalid command code")
+	}
+	binary.Read(bytes.NewBuffer(bd_cmdCode), binary.BigEndian, &cmdCode)
 
 	var reqData ReqData
-	err = json.Unmarshal(data[data_index:], &reqData)
+	err = json.Unmarshal(data_buff.Next(data_buff.Len()), &reqData)
 
-	req := NewSocketRequest()
-	req.SetOperationCode(opCode)
-	req.SetCommandCode(cmdCode)
+	req := NewSocketRequest(opCode, cmdCode)
+	req.uid = uid
 	req.SetAll(reqData)
 	p.tempRequests[p.maxIndex] = req
-	p.maxIndex++
+	if p.maxIndex < 255 {
+		p.maxIndex++
+	} else {
+		p.maxIndex = 0
+	}
 
 	return err
 }
 
 // 打包檔案
-func (p *Packer) PackData(opCode OperationCode, cmdCode CommandCode, reqData ReqData) (byteData []byte, err error) {
+func (p *Packer) PackData(reqTime time.Time, opCode OperationCode, cmdCode CommandCode, reqData ReqData) (byteData []byte, err error) {
 	byteData = make([]byte, 0)
 	err = nil
-	var totalLength int32 = 2
 
 	var jsonData []byte
 	jsonData, err = json.Marshal(reqData)
@@ -151,16 +171,19 @@ func (p *Packer) PackData(opCode OperationCode, cmdCode CommandCode, reqData Req
 		return byteData, err
 	}
 
+	var totalLength int32 = int32(8 + 1 + 1 + len(jsonData))
+
 	totalLength += int32(len(jsonData))
-	var b []byte
-	buf := bytes.NewBuffer(b)
-	buf.Reset()
+	buf := bytes.NewBuffer(make([]byte, 0))
 	binary.Write(buf, binary.LittleEndian, totalLength)
+	binary.Write(buf, binary.LittleEndian, reqTime.UnixMilli())
+	binary.Write(buf, binary.LittleEndian, opCode)
+	binary.Write(buf, binary.LittleEndian, cmdCode)
+	binary.Write(buf, binary.LittleEndian, jsonData)
 
-	byteData = append(byteData, buf.Bytes()...)
-	byteData = append(byteData, byte(opCode))
-	byteData = append(byteData, byte(cmdCode))
-	byteData = append(byteData, jsonData...)
+	return buf.Bytes(), err
+}
 
-	return byteData, err
+func (p *Packer) PackRequest(req *SocketRequest) ([]byte, error) {
+	return p.PackData(req.GetRequestTime(), req.opCode, req.cmdCode, req.reqData)
 }

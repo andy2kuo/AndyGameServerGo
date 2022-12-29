@@ -1,14 +1,18 @@
 package socketserver
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 var ErrDataEmpty error = errors.New("request data empty")
 var ErrClientNotSet error = errors.New("request client null")
 
-func NewSocketRequest() (request *SocketRequest) {
+func NewSocketRequest(_opCode OperationCode, _cmdCode CommandCode) (request *SocketRequest) {
 	request = &SocketRequest{
-		opCode:  0,
-		cmdCode: 0,
+		uid: ReqUID(time.Now().UnixMilli()),
+		opCode:  _opCode,
+		cmdCode: _cmdCode,
 		reqData: make(ReqData),
 	}
 
@@ -17,10 +21,21 @@ func NewSocketRequest() (request *SocketRequest) {
 
 // Socket 請求
 type SocketRequest struct {
+	uid     ReqUID
 	reqData ReqData
 	opCode  OperationCode
 	cmdCode CommandCode
 	client  *SocketClient
+}
+
+// 取得請求編號
+func (req SocketRequest) GetUID() ReqUID {
+	return req.uid
+}
+
+// 取得請求時間
+func (req SocketRequest) GetRequestTime() time.Time {
+	return time.UnixMilli(int64(req.uid))
 }
 
 // 設置此請求客戶端
@@ -28,19 +43,9 @@ func (req *SocketRequest) SetClient(client *SocketClient) {
 	req.client = client
 }
 
-// 設置程序編號
-func (req *SocketRequest) SetOperationCode(code OperationCode) {
-	req.opCode = code
-}
-
 // 取得請求程序編號
 func (req *SocketRequest) OperationCode() OperationCode {
 	return req.opCode
-}
-
-// 設置指令編號
-func (req *SocketRequest) SetCommandCode(code CommandCode) {
-	req.cmdCode = code
 }
 
 // 取得請求指令編號
@@ -82,19 +87,20 @@ func (req *SocketRequest) Response(reqData ReqData) error {
 		return ErrClientNotSet
 	}
 
-	return req.client.Send(req.opCode, req.cmdCode, reqData)
+	return req.client.Send(req.GetRequestTime(), req.opCode, req.cmdCode, reqData)
 }
 
 // 發送資料
-func (req *SocketRequest) Send(opCode OperationCode, cmdCode CommandCode, reqData ReqData) error {
+func (req *SocketRequest) Send(sendTime time.Time, opCode OperationCode, cmdCode CommandCode, reqData ReqData) error {
 	if req.client == nil {
 		return ErrClientNotSet
 	}
 
-	return req.client.Send(opCode, cmdCode, reqData)
+	return req.client.Send(sendTime, opCode, cmdCode, reqData)
 }
 
 type OperationCode byte
 type CommandCode byte
 type DataCode uint16
+type ReqUID int64
 type ReqData map[DataCode]interface{}
