@@ -126,7 +126,7 @@ func (p *Packer) transferData(data []byte) (err error) {
 	if len(bd_uid) < 8 {
 		return fmt.Errorf("request unpack fail. invalid uid")
 	}
-	binary.Read(bytes.NewBuffer(bd_uid), binary.BigEndian, &uid)
+	binary.Read(bytes.NewBuffer(bd_uid), binary.LittleEndian, &uid)
 
 	// Operation Code
 	var opCode OperationCode
@@ -134,7 +134,7 @@ func (p *Packer) transferData(data []byte) (err error) {
 	if len(bd_uid) < 1 {
 		return fmt.Errorf("request unpack fail. invalid op code")
 	}
-	binary.Read(bytes.NewBuffer(bd_opCode), binary.BigEndian, &opCode)
+	binary.Read(bytes.NewBuffer(bd_opCode), binary.LittleEndian, &opCode)
 
 	// Comand Code
 	var cmdCode CommandCode
@@ -142,7 +142,7 @@ func (p *Packer) transferData(data []byte) (err error) {
 	if len(bd_uid) < 1 {
 		return fmt.Errorf("request unpack fail. invalid command code")
 	}
-	binary.Read(bytes.NewBuffer(bd_cmdCode), binary.BigEndian, &cmdCode)
+	binary.Read(bytes.NewBuffer(bd_cmdCode), binary.LittleEndian, &cmdCode)
 
 	var reqData ReqData
 	err = json.Unmarshal(data_buff.Next(data_buff.Len()), &reqData)
@@ -173,7 +173,6 @@ func (p *Packer) PackData(reqTime time.Time, opCode OperationCode, cmdCode Comma
 
 	var totalLength int32 = int32(8 + 1 + 1 + len(jsonData))
 
-	totalLength += int32(len(jsonData))
 	buf := bytes.NewBuffer(make([]byte, 0))
 	binary.Write(buf, binary.LittleEndian, totalLength)
 	binary.Write(buf, binary.LittleEndian, reqTime.UnixMilli())
