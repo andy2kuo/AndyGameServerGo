@@ -151,7 +151,7 @@ func loadSection(section_name string, section_type reflect.Type, config_file *in
 	return new_section_value
 }
 
-func GetConfig(config_data IConfig) (err error) {
+func GetConfig(env string, config_data IConfig) (err error) {
 	if reflect.TypeOf(config_data).Kind() != reflect.Ptr {
 		return fmt.Errorf("not a pointer")
 	}
@@ -162,8 +162,11 @@ func GetConfig(config_data IConfig) (err error) {
 		return ErrLoadConfig
 	}
 
+	env_path := fmt.Sprintf("Config/%v", env)
+	os.MkdirAll(env_path, 0755)
+
 	var ini_name string = fmt.Sprintf("%v.%v", config_data.Name(), "ini")
-	var ini_path string = path.Join("Config", ini_name)
+	var ini_path string = path.Join(env_path, ini_name)
 	var ini_file *ini.File
 
 	if _, err = os.Stat(ini_path); errors.Is(err, os.ErrNotExist) {

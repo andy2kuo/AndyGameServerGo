@@ -23,12 +23,12 @@ func TestForTest(t *testing.T) {
 }
 
 func TestSocketServer(t *testing.T) {
-	return
+	env := "test"
 	startTime := time.Now().UnixNano()
 	_config := &TestDatabaseSetting{}
-	config.GetConfig(_config)
+	config.GetConfig(env, _config)
 
-	logger := logger.NewLogger("test", "local-test", 0)
+	logger := logger.NewLogger(env, "local-test", 0)
 	_mongoConn, err := database.NewMongoConnection("TestServer", _config.Mongo)
 	if err != nil {
 		t.Error(err)
@@ -40,7 +40,7 @@ func TestSocketServer(t *testing.T) {
 		return
 	}
 
-	server, err := NewServer(logger, _mongoConn, _redisConn)
+	server, err := NewServer(env, logger, _mongoConn, _redisConn)
 	if err != nil {
 		t.Error(err)
 		return

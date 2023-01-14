@@ -27,8 +27,13 @@ type SocketServer struct {
 	serialNum   uint64
 	mongoConn   *database.MongoConnection
 	redisConn   *database.RedisConnection
+	env         string
 
 	AppSetting *AppSetting
+}
+
+func (server SocketServer) Environment() string {
+	return server.env
 }
 
 // 啟動
@@ -245,8 +250,9 @@ func (server *SocketServer) RunOperation(req *SocketRequest) {
 }
 
 // 產生新的Socket Server
-func NewServer(log *logger.Logger, _mongoConn *database.MongoConnection, _redisConn *database.RedisConnection) (server *SocketServer, err error) {
+func NewServer(env string, log *logger.Logger, _mongoConn *database.MongoConnection, _redisConn *database.RedisConnection) (server *SocketServer, err error) {
 	server = &SocketServer{
+		env:         env,
 		client_list: make(map[string]*SocketClient),
 		logger:      log,
 		operations:  make(map[OperationCode]IOperation),
@@ -256,7 +262,7 @@ func NewServer(log *logger.Logger, _mongoConn *database.MongoConnection, _redisC
 	}
 
 	var _setting *AppSetting = &AppSetting{}
-	_setting_err := config.GetConfig(_setting)
+	_setting_err := config.GetConfig(env, _setting)
 	if config.IsCreateNew(_setting_err) {
 		server.logger.Info("Create new application setting file")
 	}
