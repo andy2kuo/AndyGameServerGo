@@ -15,7 +15,7 @@ type SystemCode byte
 // 共用系統
 type ICommonSystem interface {
 	GetSystemCode() SystemCode
-	Init(*logger.Logger, *database.MongoConnection, *database.RedisConnection) error
+	Init(*CommonSystemManager, *logger.Logger, *database.MongoConnection, *database.RedisConnection) error
 	OnServerStart() error
 	Close() error
 }
