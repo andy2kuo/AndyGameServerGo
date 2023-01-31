@@ -19,7 +19,6 @@ import (
 type SocketServer struct {
 	listener    *net.TCPListener         // 伺服器監聽端
 	client_list map[string]*SocketClient // 已連接客戶端列表
-	systems     map[commonsystem.SystemCode]commonsystem.ICommonSystem
 	operations  map[OperationCode]IOperation
 	logger      *logger.Logger
 	ctx         context.Context
@@ -29,7 +28,8 @@ type SocketServer struct {
 	redisConn   *database.RedisConnection
 	env         string
 
-	AppSetting *AppSetting
+	SystemManager *commonsystem.CommonSystemManager
+	AppSetting    *AppSetting
 }
 
 func (server SocketServer) Environment() string {
@@ -45,13 +45,7 @@ func (server *SocketServer) Start() {
 		year, month, day := time.Now().Date()
 		cross__day_time = time.Date(year, month, day+1, 0, 0, 0, 0, time.Now().Location())
 
-		if len(server.systems) > 0 {
-			for _, sys := range server.systems {
-				if err := sys.OnServerStart(); err != nil {
-					server.logger.Error(fmt.Sprintf("System Start error. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
-				}
-			}
-		}
+		server.SystemManager.OnServerStart()
 
 		if len(server.operations) > 0 {
 			for _, op := range server.operations {
@@ -128,13 +122,7 @@ func (server *SocketServer) close() {
 		server.cancel()
 	}
 
-	if len(server.systems) > 0 {
-		for _, sys := range server.systems {
-			if err := sys.OnServerClose(); err != nil {
-				server.logger.Error(fmt.Sprintf("System Close error. Sys code = %v, error message => %v", sys.GetSystemCode(), err.Error()))
-			}
-		}
-	}
+	server.SystemManager.CloseAllSystem()
 
 	if len(server.operations) > 0 {
 		for _, op := range server.operations {
@@ -154,28 +142,6 @@ func (server *SocketServer) AddOperation(op IOperation) error {
 
 	server.operations[op.GetOperationCode()] = op
 	return op.OnOperationInit(server, server.logger)
-}
-
-// 加入共用系統
-func (server *SocketServer) AddSubSystem(sys commonsystem.ICommonSystem) error {
-	_, isExist := server.systems[sys.GetSystemCode()]
-	if isExist {
-		server.logger.Warn(fmt.Sprintf("Sys: %v Duplicate!", sys.GetSystemCode()))
-	}
-
-	server.systems[sys.GetSystemCode()] = sys
-	return sys.OnSystemInit(server.logger, server.mongoConn, server.redisConn)
-}
-
-// 取得共用系統
-func (server *SocketServer) GetCommonSystem(sysCode commonsystem.SystemCode) commonsystem.ICommonSystem {
-	sys, isExist := server.systems[sysCode]
-	if isExist {
-		return sys
-	}
-
-	server.logger.Warn(fmt.Sprintf("Sys: Get System %v fail", sysCode))
-	return nil
 }
 
 // 當有新的客戶端連線進入時
@@ -252,13 +218,14 @@ func (server *SocketServer) RunOperation(req *SocketRequest) {
 // 產生新的Socket Server
 func NewServer(env string, log *logger.Logger, _mongoConn *database.MongoConnection, _redisConn *database.RedisConnection) (server *SocketServer, err error) {
 	server = &SocketServer{
-		env:         env,
-		client_list: make(map[string]*SocketClient),
-		logger:      log,
-		operations:  make(map[OperationCode]IOperation),
-		serialNum:   0,
-		mongoConn:   _mongoConn,
-		redisConn:   _redisConn,
+		env:           env,
+		client_list:   make(map[string]*SocketClient),
+		logger:        log,
+		operations:    make(map[OperationCode]IOperation),
+		serialNum:     0,
+		mongoConn:     _mongoConn,
+		redisConn:     _redisConn,
+		SystemManager: commonsystem.NewSystemManager(log, _mongoConn, _redisConn),
 	}
 
 	var _setting *AppSetting = &AppSetting{}

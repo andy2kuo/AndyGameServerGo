@@ -2,7 +2,6 @@ package pubsub
 
 import (
 	"context"
-	"fmt"
 	"sync"
 )
 
@@ -31,14 +30,11 @@ func (h *Hub) Subscribe(ctx context.Context, s *Subscriber) error {
 	return nil
 }
 
-func (h *Hub) Publish(ctx context.Context, data []byte) error {
+func (h *Hub) Publish(ctx context.Context, data interface{}) error {
 	h.Lock()
-	msg := &message{
-		data: data,
-	}
 
 	for s := range h.subs {
-		s.Publish(ctx, msg)
+		s.Publish(ctx, data)
 	}
 	h.Unlock()
 
@@ -59,23 +55,23 @@ func NewHub() *Hub {
 	}
 }
 
-type message struct {
-	data []byte
-}
+type message interface{}
 
 type Subscriber struct {
 	sync.Mutex
 
 	name    string
-	handler chan *message
+	handler chan message
 	quit    chan struct{}
+
+	callback func(interface{})
 }
 
 func (s *Subscriber) run(ctx context.Context) {
 	for {
 		select {
 		case msg := <-s.handler:
-			fmt.Println(s.name, string(msg.data))
+			s.callback(msg)
 		case <-s.quit:
 			return
 		case <-ctx.Done():
@@ -84,7 +80,7 @@ func (s *Subscriber) run(ctx context.Context) {
 	}
 }
 
-func (s *Subscriber) Publish(ctx context.Context, msg *message) {
+func (s *Subscriber) Publish(ctx context.Context, msg message) {
 	select {
 	case <-ctx.Done():
 		return
@@ -93,10 +89,11 @@ func (s *Subscriber) Publish(ctx context.Context, msg *message) {
 	}
 }
 
-func NewSubscriber(name string) *Subscriber {
+func NewSubscriber(name string, _callback func(interface{})) *Subscriber {
 	return &Subscriber{
-		name:    name,
-		handler: make(chan *message, 100),
-		quit:    make(chan struct{}),
+		name:     name,
+		handler:  make(chan message, 100),
+		quit:     make(chan struct{}),
+		callback: _callback,
 	}
 }
