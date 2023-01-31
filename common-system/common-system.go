@@ -47,11 +47,23 @@ func (b *BaseSystem) Init(_manager *CommonSystemManager, _logger *logger.Logger,
 	return nil
 }
 
+func (b *BaseSystem) Logger() *logger.Logger {
+	return b.logger
+}
+
+func (b *BaseSystem) MongoConn() *database.MongoConnection {
+	return b.mongoConn
+}
+
+func (b *BaseSystem) RedisConn() *database.RedisConnection {
+	return b.redisConn
+}
+
 func (b *BaseSystem) OnServerStart() error {
 	return nil
 }
 
-func (b *BaseSystem) Start(interval time.Duration, progress func()) {
+func (b *BaseSystem) Start(interval time.Duration, operation func()) {
 	go func() {
 
 		for {
@@ -59,7 +71,7 @@ func (b *BaseSystem) Start(interval time.Duration, progress func()) {
 			case <-b.ctx.Done():
 				return
 			default:
-				progress()
+				operation()
 				time.Sleep(interval)
 			}
 		}
