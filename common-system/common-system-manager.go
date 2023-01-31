@@ -40,7 +40,7 @@ func (m *CommonSystemManager) AddSystem(sys ICommonSystem) error {
 	}
 
 	m.systems[sys.GetSystemCode()] = sys
-	return sys.Init(m.logger, m.mongoConn, m.redisConn)
+	return sys.Init(m, m.logger, m.mongoConn, m.redisConn)
 }
 
 func (m *CommonSystemManager) GetSystem(sysCode SystemCode) ICommonSystem {
