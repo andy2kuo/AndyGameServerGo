@@ -59,6 +59,14 @@ func (b *BaseSystem) RedisConn() *database.RedisConnection {
 	return b.redisConn
 }
 
+func (b *BaseSystem) Context() context.Context {
+	return b.ctx
+}
+
+func (b *BaseSystem) Cancel() context.CancelFunc {
+	return b.cancel
+}
+
 func (b *BaseSystem) OnServerStart() error {
 	return nil
 }
