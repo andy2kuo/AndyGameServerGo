@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -14,17 +15,28 @@ var ErrDuplicateMongoDatabase error = errors.New("duplicate mongo database")
 var ErrMongoDBInfoNotExist error = errors.New("database info not exist")
 var ErrMongoConnNotExist error = errors.New("mongo connection not exist")
 
-func NewMongoConnection(appName string, _mongoConnSettings ...MongoConnSetting) (conn *MongoConnection, err error) {
+func NewMongoConnection(appName string, _mongoSetting interface{}) (conn *MongoConnection, err error) {
 	conn = &MongoConnection{
 		tempDBInfo:      make(map[string]MongoConnSetting),
 		tempMongoClient: make(map[string]*mongo.Client),
 	}
 
-	for _, _connSetting := range _mongoConnSettings {
-		err = conn.addMongoDB(appName, _connSetting)
-		if err != nil {
-			return conn, err
+	var setting_value reflect.Value = reflect.ValueOf(_mongoSetting)
+	if setting_value.Kind() == reflect.Pointer {
+		setting_value = setting_value.Elem()
+	}
+
+	for i := 0; i < setting_value.NumField(); i++ {
+		var connSetting MongoConnSetting
+		if setting_value.Field(i).CanConvert(reflect.TypeOf(MongoConnSetting{})) {
+			connSetting = setting_value.Field(i).Interface().(MongoConnSetting)
+
+			err = conn.addMongoDB(appName, connSetting)
+			if err != nil {
+				return conn, err
+			}
 		}
+
 	}
 
 	return conn, nil
