@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -27,18 +28,29 @@ type RedisConnSetting struct {
 	Comment      string `default:"Comment for db"`
 }
 
-func NewRedisConnection(_redisConnSettings ...RedisConnSetting) (_redisConn *RedisConnection, err error) {
+func NewRedisConnection(_redisSetting interface{}) (_redisConn *RedisConnection, err error) {
 	_redisConn = &RedisConnection{
 		tempRedisClient: make(map[string]*redis.Client),
 	}
 
-	for _, _connSetting := range _redisConnSettings {
-		err = _redisConn.addConnection(_connSetting)
-		if err != nil {
-			return _redisConn, err
-		}
+	var setting_value reflect.Value = reflect.ValueOf(_redisSetting)
+	if setting_value.Kind() == reflect.Pointer {
+		setting_value = setting_value.Elem()
 	}
-	
+
+	for i := 0; i < setting_value.NumField(); i++ {
+		var connSetting RedisConnSetting
+		if setting_value.Field(i).CanConvert(reflect.TypeOf(RedisConnSetting{})) {
+			connSetting = setting_value.Field(i).Interface().(RedisConnSetting)
+
+			err = _redisConn.addConnection(connSetting)
+			if err != nil {
+				return _redisConn, err
+			}
+		}
+
+	}
+
 	return _redisConn, nil
 }
 
