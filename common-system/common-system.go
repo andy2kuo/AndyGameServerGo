@@ -11,7 +11,7 @@ import (
 type SystemCode byte
 type SystemEventCode byte
 type SystemEvent struct {
-	Code SystemCode
+	Code SystemEventCode
 	Data interface{}
 }
 
