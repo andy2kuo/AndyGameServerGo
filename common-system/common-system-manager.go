@@ -1,17 +1,17 @@
 package commonsystem
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/andy2kuo/AndyGameServerGo/database"
 	"github.com/andy2kuo/AndyGameServerGo/logger"
-	"github.com/andy2kuo/AndyGameServerGo/pubsub"
 )
 
 func NewSystemManager(_log *logger.Logger, _mongoConn *database.MongoConnection, _redisConn *database.RedisConnection) *CommonSystemManager {
 	return &CommonSystemManager{
-		Hub:       pubsub.NewHub(),
 		logger:    _log,
 		mongoConn: _mongoConn,
 		redisConn: _redisConn,
@@ -20,7 +20,7 @@ func NewSystemManager(_log *logger.Logger, _mongoConn *database.MongoConnection,
 }
 
 type CommonSystemManager struct {
-	*pubsub.Hub
+	sync.Mutex
 	logger    *logger.Logger
 	mongoConn *database.MongoConnection
 	redisConn *database.RedisConnection
@@ -29,6 +29,9 @@ type CommonSystemManager struct {
 }
 
 func (m *CommonSystemManager) AddSystem(sys ICommonSystem) error {
+	m.Lock()
+	defer m.Unlock()
+
 	if reflect.TypeOf(sys).Kind() != reflect.Ptr {
 		return fmt.Errorf("CommonSystemManager: AddSystem should use pointer")
 	}
@@ -65,10 +68,27 @@ func (m *CommonSystemManager) OnServerStart() error {
 }
 
 func (m *CommonSystemManager) CloseAllSystem() {
+	m.Lock()
+	defer m.Unlock()
+
 	for _, sys := range m.systems {
 		err := sys.Close()
 		if err != nil {
 			m.logger.Error(fmt.Sprintf("Sys: %v fail on close", sys.GetSystemCode()))
+		}
+	}
+}
+
+func (m *CommonSystemManager) notify(ctx context.Context, event SystemEvent) {
+	m.Lock()
+	defer m.Unlock()
+
+	select {
+	case <-ctx.Done():
+		break
+	default:
+		for _, sys := range m.systems {
+			sys.OnSystemEventNotify(event)
 		}
 	}
 }

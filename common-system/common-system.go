@@ -2,21 +2,22 @@ package commonsystem
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/andy2kuo/AndyGameServerGo/database"
 	"github.com/andy2kuo/AndyGameServerGo/logger"
-	"github.com/andy2kuo/AndyGameServerGo/pubsub"
 )
 
 type SystemCode byte
+type SystemEventCode byte
+type SystemEvent byte
 
 // 共用系統
 type ICommonSystem interface {
 	GetSystemCode() SystemCode
 	Init(*CommonSystemManager, *logger.Logger, *database.MongoConnection, *database.RedisConnection) error
 	OnServerStart() error
+	OnSystemEventNotify(SystemEvent)
 	Close() error
 }
 
@@ -27,8 +28,6 @@ type BaseSystem struct {
 	logger    *logger.Logger
 	mongoConn *database.MongoConnection
 	redisConn *database.RedisConnection
-
-	systemSub *pubsub.Subscriber
 }
 
 func (b *BaseSystem) GetSystem(sysCode SystemCode) ICommonSystem {
@@ -92,15 +91,6 @@ func (b *BaseSystem) Close() error {
 	return nil
 }
 
-func (b *BaseSystem) Subscribe(sysCode SystemCode, callback func(interface{})) {
-	b.systemSub = pubsub.NewSubscriber(fmt.Sprintf("System:%v:Subscriber", sysCode), callback)
-
-	err := b.manager.Subscribe(b.ctx, b.systemSub)
-	if err != nil {
-		b.logger.Error(err)
-	}
-}
-
-func (b *BaseSystem) Unsubscribe() {
-	b.manager.Unsubscribe(b.systemSub)
+func (b *BaseSystem) Notify(event SystemEvent) {
+	b.manager.notify(b.ctx, event)
 }
