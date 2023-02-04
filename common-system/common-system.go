@@ -10,7 +10,10 @@ import (
 
 type SystemCode byte
 type SystemEventCode byte
-type SystemEvent byte
+type SystemEvent struct {
+	Code SystemCode
+	Data interface{}
+}
 
 // 共用系統
 type ICommonSystem interface {
