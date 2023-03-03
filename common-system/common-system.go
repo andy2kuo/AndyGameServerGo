@@ -2,6 +2,7 @@ package commonsystem
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/andy2kuo/AndyGameServerGo/database"
@@ -73,15 +74,27 @@ func (b *BaseSystem) OnServerStart() error {
 	return nil
 }
 
-func (b *BaseSystem) Start(interval time.Duration, operation func()) {
+func (b *BaseSystem) Start(opName string, operation func() error, interval time.Duration) {
 	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				b.logger.Warn(fmt.Sprintf("Operation %v Stop with error => %v", opName, err))
+			} else {
+				b.logger.Info(fmt.Sprintf("Operation %v Stop", opName))
+			}
+		}()
 
+		b.logger.Info(fmt.Sprintf("Operation %v Start", opName))
 		for {
 			select {
 			case <-b.ctx.Done():
 				return
 			default:
-				operation()
+				err := operation()
+				if err != nil {
+					panic(err)
+				}
+
 				time.Sleep(interval)
 			}
 		}
