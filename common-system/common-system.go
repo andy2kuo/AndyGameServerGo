@@ -76,14 +76,11 @@ func (b *BaseSystem) OnServerStart() error {
 
 func (b *BaseSystem) Start(opName string, operation func(), interval time.Duration) {
 	go func() {
-		defer func() {
-			b.logger.Info(fmt.Sprintf("Operation %v Stop", opName))
-		}()
-
 		b.logger.Info(fmt.Sprintf("Operation %v Start", opName))
 		for {
 			select {
 			case <-b.ctx.Done():
+				b.logger.Info(fmt.Sprintf("Operation %v Stop", opName))
 				return
 			default:
 				operation()
