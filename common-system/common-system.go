@@ -76,16 +76,25 @@ func (b *BaseSystem) OnServerStart() error {
 
 func (b *BaseSystem) Start(opName string, operation func(), interval time.Duration) {
 	go func() {
+		next_time := time.Time{}
 		b.logger.Info(fmt.Sprintf("Operation %v Start", opName))
+	Loop:
 		for {
 			select {
 			case <-b.ctx.Done():
 				b.logger.Info(fmt.Sprintf("Operation %v Stop", opName))
-				return
+				break Loop
 			default:
-				operation()
-				time.Sleep(interval)
+				now_time := time.Now()
+				if now_time.After(next_time) {
+					next_time = now_time.Add(interval)
+					operation()
+				}
+
+				time.Sleep(time.Second)
 			}
+
+
 		}
 	}()
 }
