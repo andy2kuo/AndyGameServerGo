@@ -74,14 +74,10 @@ func (b *BaseSystem) OnServerStart() error {
 	return nil
 }
 
-func (b *BaseSystem) Start(opName string, operation func() error, interval time.Duration) {
+func (b *BaseSystem) Start(opName string, operation func(), interval time.Duration) {
 	go func() {
 		defer func() {
-			if err := recover(); err != nil {
-				b.logger.Warn(fmt.Sprintf("Operation %v Stop with error => %v", opName, err))
-			} else {
-				b.logger.Info(fmt.Sprintf("Operation %v Stop", opName))
-			}
+			b.logger.Info(fmt.Sprintf("Operation %v Stop", opName))
 		}()
 
 		b.logger.Info(fmt.Sprintf("Operation %v Start", opName))
@@ -90,11 +86,7 @@ func (b *BaseSystem) Start(opName string, operation func() error, interval time.
 			case <-b.ctx.Done():
 				return
 			default:
-				err := operation()
-				if err != nil {
-					panic(err)
-				}
-
+				operation()
 				time.Sleep(interval)
 			}
 		}
