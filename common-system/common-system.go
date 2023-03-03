@@ -75,6 +75,10 @@ func (b *BaseSystem) OnServerStart() error {
 }
 
 func (b *BaseSystem) Start(opName string, operation func(), interval time.Duration) {
+	if interval <= time.Second {
+		interval = time.Second
+	}
+
 	go func() {
 		next_time := time.Time{}
 		b.logger.Info(fmt.Sprintf("Operation %v Start", opName))
