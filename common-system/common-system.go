@@ -70,7 +70,7 @@ func (b *BaseSystem) TimeoutContext(duration time.Duration) (context.Context, co
 	return context.WithTimeout(b.ctx, duration)
 }
 
-func (b *BaseSystem) CancelContext(duration time.Duration) (context.Context, context.CancelFunc) {
+func (b *BaseSystem) CancelContext() (context.Context, context.CancelFunc) {
 	return context.WithCancel(b.ctx)
 }
 
