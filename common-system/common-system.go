@@ -66,6 +66,14 @@ func (b *BaseSystem) Context() context.Context {
 	return b.ctx
 }
 
+func (b *BaseSystem) TimeoutContext(duration time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(b.ctx, duration)
+}
+
+func (b *BaseSystem) CancelContext(duration time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithCancel(b.ctx)
+}
+
 func (b *BaseSystem) Cancel() context.CancelFunc {
 	return b.cancel
 }
