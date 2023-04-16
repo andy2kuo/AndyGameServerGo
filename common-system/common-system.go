@@ -2,6 +2,7 @@ package commonsystem
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/andy2kuo/AndyGameServerGo/database"
@@ -65,6 +66,14 @@ func (b *BaseSystem) Context() context.Context {
 	return b.ctx
 }
 
+func (b *BaseSystem) TimeoutContext(duration time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(b.ctx, duration)
+}
+
+func (b *BaseSystem) CancelContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(b.ctx)
+}
+
 func (b *BaseSystem) Cancel() context.CancelFunc {
 	return b.cancel
 }
@@ -73,17 +82,31 @@ func (b *BaseSystem) OnServerStart() error {
 	return nil
 }
 
-func (b *BaseSystem) Start(interval time.Duration, operation func()) {
-	go func() {
+func (b *BaseSystem) Start(opName string, operation func(), interval time.Duration) {
+	if interval <= time.Second {
+		interval = time.Second
+	}
 
+	go func() {
+		next_time := time.Time{}
+		b.logger.Info(fmt.Sprintf("Operation %v Start", opName))
+	Loop:
 		for {
 			select {
 			case <-b.ctx.Done():
-				return
+				b.logger.Info(fmt.Sprintf("Operation %v Stop", opName))
+				break Loop
 			default:
-				operation()
-				time.Sleep(interval)
+				now_time := time.Now()
+				if now_time.After(next_time) {
+					next_time = now_time.Add(interval)
+					operation()
+				}
+
+				time.Sleep(time.Second)
 			}
+
+
 		}
 	}()
 }
