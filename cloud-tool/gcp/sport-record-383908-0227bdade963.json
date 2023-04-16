@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "sport-record-383908",
+  "private_key_id": "0227bdade9631822aeac83b9e8adfc970c8e71fa",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCY9y9Tv0L3DycW\nhVn+FvRHmSSnogmZ0+HnMbMWc+xkwGI4l7E5iSXFKxJzk4A88DJAw5TxPzt+WASa\npImrENZpDiMY+M3I4JZhN6ox9X51xiPSEMDH5TmMczhdfKOjFyA8ReIe//HbOaZg\nWMp7Uyq8wGMmPnwEGp3RYLIIJDiX3ey19uk/xbO6SplDrRRbM2Gs9WVP162GJFB6\napupNdYI1JiKzRMOJVg4qRv/7iyQNlrUl3z9E6OzV7Ou8oF+2p7BFCEBIWp73PRI\nfUekcDqXqCGrc2sg8I0wpzIiprbg8GuAFvVPR6GxHSpctziEG3lC42SSVi+i5fO3\nLJdVc+txAgMBAAECggEAArFkg/gnrTaseWNr6FrbjmHhjOxfwxrMGk75aZjCfErX\n2SoVqrcUVcB5OX+K7A+4u8OxtOOoMrRecYxEt/DdbHcChUwBNUh7v0QHYcF8xPp8\niumEd6nHKcbFbZMThKwpiIQcsS86y7FWnBw+ECjLJXc/25vRS5IeIzIytNfckZ2w\nVhbD6v895+h02JZlxDXRockCz4i/xiccegePOsiAZK0i0NbVDuWl0LQrI7HuRS6y\nEdzADovFePxizTacuMlWv21NlIJOHxR+IS7PoG0B2Q91O+oQsK/MoXviRGscBYLF\n9r/nI5vmV7wPM5f0CPGTOQcGRY0kmOjO9+Tw1icrYQKBgQDNxGv3hepp0EJf8axG\nC/i1cdu5VCf13FC1yrMfsSIZ9LunKA6Et6S1GidlsZh4pAWVEdLmdjATs5g1i9u2\nbM2nU/8hChrVtj/T+NcaUkkQMphh16Giq8ybA3GOvBPnbuGJcPiH0IYzSPkuiz6v\ntDLOslzYcch4pGW3T9McqmuUUQKBgQC+TuGeoiYx9Zm555IqdD70tRpq+c9snYhz\nREIVf94vaHKHeICJBs5cAu/a/i2yrVrZ0afI1TRxe++PA9Y3lDnX92Btu0NwqcLH\n74z/seSKYC+tLkalHjKbh30hRjcmVz3/LjUIj0gftMyScQ1f0cGuEZwzxh50ZSMi\nEgdWKDa9IQKBgQCTbnJhdr0ftc1pCzMBOWCpOPxTDL5ZBdN6fdLcGUGy0UyHF0dX\nxnEoJaYm0hnKDtPFHHE9GV+XLi4X5660Rb8Qbjm2BZR2nc+b5IbS4DRje6z9JdA1\nSt0eEFiUCaRFRYgpvx0Dyt/s7RNFSxXONNHWkau+lcAq2LfcoUBFIMJWEQKBgQCI\n7tFBB4NcJ1A5h/qQOZyjDzy3BJDPonpwFglG1v7UNd9Sws4Zyp/pbOORO5s+GaZp\nXIXR6DcYAQlaanRVAX6tev4Tds8L3dqdaiyWPzYmqxcjEU0buiLH7jGHI7LDD7s4\nRdM7GX3X8ovQQzBQZelqiplOV5vKPIuPFFHbGIxqgQKBgQCs5k8MBxJNWFKfcdxs\nnKSBoABBsZNQHoqwbitni61Fs74EQZPXkE3I5nBm7tHdVnAGA+K0DSNmp5wtljO7\nc379b2XcpLhYrdSTf8ucevqYAybux0a6g8iMGBlPmja5pFyhEpX/RCFam014DtWr\nWu6V3wm2cfaNviOwdLmYQTOKDg==\n-----END PRIVATE KEY-----\n",
+  "client_email": "sport-record-service@sport-record-383908.iam.gserviceaccount.com",
+  "client_id": "112091042845845462982",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/sport-record-service%40sport-record-383908.iam.gserviceaccount.com"
+}
