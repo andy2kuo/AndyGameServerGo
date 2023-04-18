@@ -27,7 +27,14 @@ func TestUpload(t *testing.T) {
 	bd, _ := json.MarshalIndent(test_data, "", "    ")
 	t.Log(string(bd))
 
-	err := gcp.UploadFromMemory(context.Background(), "sport-record", "test_json1.json", bd, "application/json")
+	request := gcp.UploadRequest{
+		BucketName: "sport-record",
+		FileName: "test_json1.json",
+		Data: bd,
+		ContentType: "application/json",
+	}
+
+	err := gcp.UploadFromMemory(context.Background(), request)
 	if err != nil {
 		t.Log(err.Error())
 	} else {

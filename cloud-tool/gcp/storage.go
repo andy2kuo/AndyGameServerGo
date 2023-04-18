@@ -4,14 +4,22 @@ import (
 	"context"
 )
 
-func UploadFromMemory(ctx context.Context, bucket_name string, file_name string, data []byte, context_type string) (err error) {
-	bkt := storage_client.Bucket(bucket_name)
-	obj := bkt.Object(file_name)
+type UploadRequest struct {
+	BucketName  string
+	FileName    string
+	Data        []byte
+	ContentType string
+}
+
+func UploadFromMemory(ctx context.Context, request UploadRequest) (err error) {
+	bkt := storage_client.Bucket(request.BucketName)
+	obj := bkt.Object(request.FileName)
 
 	writer := obj.NewWriter(ctx)
 	defer writer.Close()
 
-	writer.ContentType = context_type
-	_, err = writer.Write(data)
+	writer.ContentType = request.ContentType
+	_, err = writer.Write(request.Data)
+
 	return err
 }
